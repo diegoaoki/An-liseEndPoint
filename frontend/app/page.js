@@ -654,6 +654,17 @@ export default function Home() {
     }
   }
 
+  async function handleDelete(id) {
+    if (!confirm(`Remover o endpoint #${id}? O histórico também será apagado.`))
+      return;
+    try {
+      await api.deleteEndpoint(id);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function handleSaveEdit(id, payload) {
     try {
       await api.updateEndpoint(id, payload);
@@ -1029,6 +1040,7 @@ export default function Home() {
                       onToggleActive={() => handleToggle(ep)}
                       onToggleSsl={() => handleToggleSsl(ep)}
                       onSetThreshold={(v) => handleSetThreshold(ep, v)}
+                      onDelete={() => handleDelete(ep.id)}
                       isEditing={editId === ep.id}
                       onEdit={() => setEditId(ep.id)}
                       onCancelEdit={() => setEditId(null)}
@@ -1054,6 +1066,7 @@ function FragmentRow({
   onToggleActive,
   onToggleSsl,
   onSetThreshold,
+  onDelete,
   isEditing,
   onEdit,
   onCancelEdit,
@@ -1134,6 +1147,9 @@ function FragmentRow({
               title="Liga/desliga a verificação do certificado TLS"
             >
               {ep.verify_ssl === false ? "SSL: ligar" : "SSL: desligar"}
+            </button>
+            <button className="danger" onClick={onDelete}>
+              Excluir
             </button>
           </div>
         </td>
