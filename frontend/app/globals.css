@@ -253,6 +253,11 @@ th {
   box-shadow: 0 0 10px #ef444488;
 }
 
+.farol-yellow {
+  background: #eab308;
+  box-shadow: 0 0 10px #eab30888;
+}
+
 .farol-blue {
   background: #38bdf8;
   box-shadow: 0 0 10px #38bdf888;

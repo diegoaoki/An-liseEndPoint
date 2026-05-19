@@ -39,6 +39,9 @@ function ResultBadge({ result }) {
   );
 }
 
+// Acima de quantos % da média o farol vira vermelho (entre média e isso = amarelo).
+const RED_THRESHOLD = 1.5; // 50% acima da média
+
 // Decide a cor do farol comparando a última consulta com a média anterior.
 function farolStatus(ep) {
   const last = ep.last_result;
@@ -49,10 +52,15 @@ function farolStatus(ep) {
   if (avg == null || lastMs == null) {
     return { color: "blue", texto: "Sem base de comparação ainda" };
   }
-  if (lastMs > avg) {
-    return { color: "red", texto: "Mais lento que a média" };
+  if (lastMs <= avg) {
+    return { color: "green", texto: "Dentro da média" };
   }
-  return { color: "green", texto: "Dentro da média" };
+  if (lastMs <= avg * RED_THRESHOLD) {
+    const pct = Math.round((lastMs / avg - 1) * 100);
+    return { color: "yellow", texto: `Levemente lento (+${pct}%)` };
+  }
+  const pct = Math.round((lastMs / avg - 1) * 100);
+  return { color: "red", texto: `Muito lento (+${pct}% da média)` };
 }
 
 function Farol({ ep }) {
@@ -249,8 +257,8 @@ export default function Home() {
         <section className="card">
           <h2>Painel — farol dos endpoints</h2>
           <p className="muted" style={{ fontSize: "0.8rem", marginBottom: 14 }}>
-            🟢 dentro da média · 🔴 mais lento que a média (ou falha) · 🔵 sem
-            base ainda · ⚪ sem dados
+            🟢 dentro da média · 🟡 até 50% acima · 🔴 mais de 50% acima (ou
+            falha) · 🔵 sem base ainda · ⚪ sem dados
           </p>
           <Dashboard endpoints={endpoints} loading={loading} />
         </section>
