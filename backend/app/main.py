@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from . import models, schemas
@@ -15,10 +16,30 @@ CHECK_INTERVAL_MINUTES = int(os.getenv("CHECK_INTERVAL_MINUTES", "5"))
 scheduler = AsyncIOScheduler()
 
 
+def run_migrations() -> None:
+    """Adiciona colunas novas a tabelas já existentes (create_all não faz isso).
+
+    Idempotente: só roda o ALTER quando a coluna não existe.
+    """
+    insp = inspect(engine)
+    existing = {c["name"] for c in insp.get_columns("endpoints")}
+    new_columns = {
+        "auth_username": "VARCHAR(255)",
+        "auth_password": "VARCHAR(255)",
+    }
+    with engine.begin() as conn:
+        for col, col_type in new_columns.items():
+            if col not in existing:
+                conn.execute(
+                    text(f"ALTER TABLE endpoints ADD COLUMN {col} {col_type}")
+                )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Cria as tabelas se não existirem (suficiente para o escopo atual).
     Base.metadata.create_all(bind=engine)
+    run_migrations()
 
     scheduler.add_job(
         run_checks,

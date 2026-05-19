@@ -43,7 +43,13 @@ export default function Home() {
   const [endpoints, setEndpoints] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ name: "", url: "", method: "GET" });
+  const [form, setForm] = useState({
+    name: "",
+    url: "",
+    method: "GET",
+    auth_username: "",
+    auth_password: "",
+  });
   const [submitting, setSubmitting] = useState(false);
   const [expanded, setExpanded] = useState(null);
   const [history, setHistory] = useState({});
@@ -71,8 +77,24 @@ export default function Home() {
     if (!form.name.trim() || !form.url.trim()) return;
     setSubmitting(true);
     try {
-      await api.createEndpoint(form);
-      setForm({ name: "", url: "", method: "GET" });
+      const payload = {
+        name: form.name,
+        url: form.url,
+        method: form.method,
+      };
+      // Só envia credenciais se preenchidas (senão ficam null no banco).
+      if (form.auth_username.trim()) {
+        payload.auth_username = form.auth_username.trim();
+        payload.auth_password = form.auth_password;
+      }
+      await api.createEndpoint(payload);
+      setForm({
+        name: "",
+        url: "",
+        method: "GET",
+        auth_username: "",
+        auth_password: "",
+      });
       await load();
     } catch (err) {
       setError(err.message);
@@ -174,10 +196,39 @@ export default function Home() {
               ))}
             </select>
           </div>
+          <div className="field">
+            <label htmlFor="auth_username">Usuário (opcional)</label>
+            <input
+              id="auth_username"
+              value={form.auth_username}
+              placeholder="se exigir auth"
+              autoComplete="off"
+              onChange={(e) =>
+                setForm({ ...form, auth_username: e.target.value })
+              }
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="auth_password">Senha (opcional)</label>
+            <input
+              id="auth_password"
+              type="password"
+              value={form.auth_password}
+              placeholder="••••••"
+              autoComplete="new-password"
+              onChange={(e) =>
+                setForm({ ...form, auth_password: e.target.value })
+              }
+            />
+          </div>
           <button type="submit" disabled={submitting}>
             {submitting ? "Salvando…" : "Adicionar"}
           </button>
         </form>
+        <p className="muted" style={{ marginTop: 10, fontSize: "0.78rem" }}>
+          Usuário/senha usam HTTP Basic Auth na requisição ao endpoint
+          monitorado. Deixe em branco se não for necessário.
+        </p>
       </section>
 
       <section className="card">
@@ -236,6 +287,14 @@ function FragmentRow({
         <td>#{ep.id}</td>
         <td>
           <strong>{ep.name}</strong>
+          {ep.has_auth && (
+            <span
+              title={`Basic Auth (usuário: ${ep.auth_username || "—"})`}
+              style={{ marginLeft: 6 }}
+            >
+              🔒
+            </span>
+          )}
           <br />
           <span className="muted" style={{ fontSize: "0.78rem" }}>
             {ep.method} {ep.url}

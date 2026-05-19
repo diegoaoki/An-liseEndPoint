@@ -8,6 +8,8 @@ class EndpointCreate(BaseModel):
     url: str
     method: str = "GET"
     is_active: bool = True
+    auth_username: str | None = None
+    auth_password: str | None = None
 
 
 class EndpointUpdate(BaseModel):
@@ -15,6 +17,8 @@ class EndpointUpdate(BaseModel):
     url: str | None = None
     method: str | None = None
     is_active: bool | None = None
+    auth_username: str | None = None
+    auth_password: str | None = None
 
 
 class EndpointOut(BaseModel):
@@ -26,6 +30,9 @@ class EndpointOut(BaseModel):
     method: str
     is_active: bool
     created_at: datetime
+    # Usuário aparece (para exibir/editar); a senha nunca é devolvida.
+    auth_username: str | None = None
+    has_auth: bool = False
 
 
 class CheckResultOut(BaseModel):

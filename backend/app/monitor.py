@@ -15,6 +15,11 @@ async def check_endpoint(
     client: httpx.AsyncClient, endpoint: models.Endpoint
 ) -> models.CheckResult:
     """Faz um request no endpoint e devolve o resultado (sem persistir)."""
+    auth = (
+        (endpoint.auth_username or "", endpoint.auth_password or "")
+        if (endpoint.auth_username or endpoint.auth_password)
+        else None
+    )
     start = time.perf_counter()
     try:
         resp = await client.request(
@@ -22,6 +27,7 @@ async def check_endpoint(
             endpoint.url,
             timeout=REQUEST_TIMEOUT,
             follow_redirects=True,
+            auth=auth,
         )
         elapsed_ms = (time.perf_counter() - start) * 1000
         return models.CheckResult(

@@ -26,6 +26,9 @@ class Endpoint(Base):
     name: Mapped[str] = mapped_column(String(255))
     url: Mapped[str] = mapped_column(String(2048))
     method: Mapped[str] = mapped_column(String(10), default="GET")
+    # Credenciais opcionais (HTTP Basic Auth) do endpoint monitorado.
+    auth_username: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    auth_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow
@@ -36,6 +39,10 @@ class Endpoint(Base):
         cascade="all, delete-orphan",
         order_by="CheckResult.checked_at.desc()",
     )
+
+    @property
+    def has_auth(self) -> bool:
+        return bool(self.auth_username or self.auth_password)
 
 
 class CheckResult(Base):
