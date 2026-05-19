@@ -1,0 +1,22 @@
+# Backend
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+local.db
+*.sqlite3
+
+# Frontend
+node_modules/
+.next/
+out/
+.env*.local
+.vercel
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Claude Code (config local pessoal)
+.claude/settings.local.json
