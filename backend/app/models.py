@@ -29,6 +29,8 @@ class Endpoint(Base):
     # Credenciais opcionais (HTTP Basic Auth) do endpoint monitorado.
     auth_username: Mapped[str | None] = mapped_column(String(255), nullable=True)
     auth_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Verificar certificado TLS? Desligue para hosts com cert inválido.
+    verify_ssl: Mapped[bool] = mapped_column(Boolean, default=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow

@@ -332,6 +332,7 @@ export default function Home() {
     method: "GET",
     auth_username: "",
     auth_password: "",
+    verify_ssl: true,
   });
   const [submitting, setSubmitting] = useState(false);
   const [expanded, setExpanded] = useState(null);
@@ -452,6 +453,7 @@ export default function Home() {
         name: form.name,
         url: form.url,
         method: form.method,
+        verify_ssl: form.verify_ssl,
       };
       // Só envia credenciais se preenchidas (senão ficam null no banco).
       if (form.auth_username.trim()) {
@@ -465,6 +467,7 @@ export default function Home() {
         method: "GET",
         auth_username: "",
         auth_password: "",
+        verify_ssl: true,
       });
       await load();
     } catch (err) {
@@ -488,6 +491,15 @@ export default function Home() {
   async function handleToggle(ep) {
     try {
       await api.updateEndpoint(ep.id, { is_active: !ep.is_active });
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleToggleSsl(ep) {
+    try {
+      await api.updateEndpoint(ep.id, { verify_ssl: !ep.verify_ssl });
       await load();
     } catch (err) {
       setError(err.message);
@@ -720,6 +732,29 @@ export default function Home() {
                   }
                 />
               </div>
+              <div className="field">
+                <label htmlFor="verify_ssl">Certificado SSL</label>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: "0.85rem",
+                    height: 38,
+                  }}
+                >
+                  <input
+                    id="verify_ssl"
+                    type="checkbox"
+                    style={{ minWidth: "auto", width: 16, height: 16 }}
+                    checked={form.verify_ssl}
+                    onChange={(e) =>
+                      setForm({ ...form, verify_ssl: e.target.checked })
+                    }
+                  />
+                  Verificar
+                </label>
+              </div>
               <button type="submit" disabled={submitting}>
                 {submitting ? "Salvando…" : "Adicionar"}
               </button>
@@ -762,6 +797,7 @@ export default function Home() {
                       onToggleExpand={() => toggleExpand(ep.id)}
                       onCheckNow={() => handleCheckNow(ep.id)}
                       onToggleActive={() => handleToggle(ep)}
+                      onToggleSsl={() => handleToggleSsl(ep)}
                       onDelete={() => handleDelete(ep.id)}
                     />
                   ))}
@@ -782,6 +818,7 @@ function FragmentRow({
   onToggleExpand,
   onCheckNow,
   onToggleActive,
+  onToggleSsl,
   onDelete,
 }) {
   const last = ep.last_result;
@@ -808,6 +845,15 @@ function FragmentRow({
               pausado
             </span>
           )}
+          {ep.verify_ssl === false && (
+            <span
+              className="badge fail"
+              style={{ marginLeft: 8 }}
+              title="Verificação de certificado TLS desligada"
+            >
+              SSL off
+            </span>
+          )}
         </td>
         <td>
           <ResultBadge result={last} />
@@ -825,6 +871,13 @@ function FragmentRow({
             </button>
             <button className="ghost" onClick={onToggleActive}>
               {ep.is_active ? "Pausar" : "Ativar"}
+            </button>
+            <button
+              className="ghost"
+              onClick={onToggleSsl}
+              title="Liga/desliga a verificação do certificado TLS"
+            >
+              {ep.verify_ssl === false ? "SSL: ligar" : "SSL: desligar"}
             </button>
             <button className="danger" onClick={onDelete}>
               Excluir

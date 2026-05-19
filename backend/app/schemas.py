@@ -10,6 +10,7 @@ class EndpointCreate(BaseModel):
     is_active: bool = True
     auth_username: str | None = None
     auth_password: str | None = None
+    verify_ssl: bool = True
 
 
 class EndpointUpdate(BaseModel):
@@ -19,6 +20,7 @@ class EndpointUpdate(BaseModel):
     is_active: bool | None = None
     auth_username: str | None = None
     auth_password: str | None = None
+    verify_ssl: bool | None = None
 
 
 class EndpointOut(BaseModel):
@@ -33,6 +35,7 @@ class EndpointOut(BaseModel):
     # Usuário aparece (para exibir/editar); a senha nunca é devolvida.
     auth_username: str | None = None
     has_auth: bool = False
+    verify_ssl: bool = True
 
 
 class SettingsOut(BaseModel):

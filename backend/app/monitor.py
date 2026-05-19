@@ -11,24 +11,28 @@ from .database import SessionLocal
 REQUEST_TIMEOUT = 30.0
 
 
-async def check_endpoint(
-    client: httpx.AsyncClient, endpoint: models.Endpoint
-) -> models.CheckResult:
-    """Faz um request no endpoint e devolve o resultado (sem persistir)."""
+async def check_endpoint(endpoint: models.Endpoint) -> models.CheckResult:
+    """Faz um request no endpoint e devolve o resultado (sem persistir).
+
+    Cria um client por checagem porque o `verify` (validar TLS) é
+    configurado por endpoint, não por requisição.
+    """
     auth = (
         (endpoint.auth_username or "", endpoint.auth_password or "")
         if (endpoint.auth_username or endpoint.auth_password)
         else None
     )
+    verify = endpoint.verify_ssl if endpoint.verify_ssl is not None else True
     start = time.perf_counter()
     try:
-        resp = await client.request(
-            endpoint.method.upper(),
-            endpoint.url,
-            timeout=REQUEST_TIMEOUT,
-            follow_redirects=True,
-            auth=auth,
-        )
+        async with httpx.AsyncClient(verify=verify) as client:
+            resp = await client.request(
+                endpoint.method.upper(),
+                endpoint.url,
+                timeout=REQUEST_TIMEOUT,
+                follow_redirects=True,
+                auth=auth,
+            )
         elapsed_ms = (time.perf_counter() - start) * 1000
         return models.CheckResult(
             endpoint_id=endpoint.id,
@@ -60,10 +64,9 @@ async def run_checks() -> None:
         if not endpoints:
             return
 
-        async with httpx.AsyncClient() as client:
-            results = await asyncio.gather(
-                *(check_endpoint(client, e) for e in endpoints)
-            )
+        results = await asyncio.gather(
+            *(check_endpoint(e) for e in endpoints)
+        )
 
         db.add_all(results)
         db.commit()
@@ -78,8 +81,7 @@ async def check_single(endpoint_id: int) -> models.CheckResult | None:
         endpoint = db.get(models.Endpoint, endpoint_id)
         if endpoint is None:
             return None
-        async with httpx.AsyncClient() as client:
-            result = await check_endpoint(client, endpoint)
+        result = await check_endpoint(endpoint)
         db.add(result)
         db.commit()
         db.refresh(result)
