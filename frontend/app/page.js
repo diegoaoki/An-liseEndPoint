@@ -39,8 +39,9 @@ function ResultBadge({ result }) {
   );
 }
 
-// Acima de quantos % da média o farol vira vermelho (entre média e isso = amarelo).
-const RED_THRESHOLD = 1.5; // 50% acima da média
+// Margens sobre a média (absorve o jitter normal de rede):
+const GREEN_THRESHOLD = 1.2; // até +20% ainda é verde
+const RED_THRESHOLD = 1.5; // acima de +50% é vermelho (entre os dois = amarelo)
 
 // Decide a cor do farol comparando a última consulta com a média anterior.
 function farolStatus(ep) {
@@ -52,7 +53,7 @@ function farolStatus(ep) {
   if (avg == null || lastMs == null) {
     return { color: "blue", texto: "Sem base de comparação ainda" };
   }
-  if (lastMs <= avg) {
+  if (lastMs <= avg * GREEN_THRESHOLD) {
     return { color: "green", texto: "Dentro da média" };
   }
   if (lastMs <= avg * RED_THRESHOLD) {
@@ -311,9 +312,8 @@ export default function Home() {
             </button>
           </div>
           <p className="muted" style={{ fontSize: "0.8rem", marginBottom: 14 }}>
-            🟢 dentro da média · 🟡 até 50% acima · 🔴 mais de 50% acima (ou
-            falha) · 🔵 sem base ainda · ⚪ sem dados — atualiza sozinho a cada
-            10s
+            🟢 até +20% da média · 🟡 +20% a +50% · 🔴 acima de +50% (ou falha)
+            · 🔵 sem base ainda · ⚪ sem dados — atualiza sozinho a cada 10s
           </p>
           <Dashboard endpoints={endpoints} loading={loading} />
         </section>
