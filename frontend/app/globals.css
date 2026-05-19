@@ -277,3 +277,44 @@ th {
 .dash-label strong {
   color: #e2e8f0;
 }
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.card-head h2 {
+  margin-bottom: 0;
+}
+
+/* ---- Card agressivo: endpoint fora do ar ---- */
+.dash-card-down {
+  border: 2px solid #ef4444;
+  background: #2a0e0e;
+  animation: alarme 1s ease-in-out infinite;
+}
+
+@keyframes alarme {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
+.down-banner {
+  background: #ef4444;
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: center;
+  padding: 6px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 0.85rem;
+}

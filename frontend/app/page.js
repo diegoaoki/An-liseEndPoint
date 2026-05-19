@@ -67,8 +67,11 @@ function Farol({ ep }) {
   const { color, texto } = farolStatus(ep);
   const last = ep.last_result;
   const avg = ep.avg_response_time_ms;
+  // Card agressivo quando a última consulta falhou (endpoint fora do ar).
+  const isDown = last && !last.success;
   return (
-    <div className="dash-card">
+    <div className={isDown ? "dash-card dash-card-down" : "dash-card"}>
+      {isDown && <div className="down-banner">⚠ FORA DO AR</div>}
       <div className="dash-head">
         <span className={`farol farol-${color}`} title={texto} />
         <div>
@@ -131,6 +134,9 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [expanded, setExpanded] = useState(null);
   const [history, setHistory] = useState({});
+  const [refreshing, setRefreshing] = useState(false);
+  const [intervalInput, setIntervalInput] = useState("");
+  const [savingInterval, setSavingInterval] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -144,11 +150,54 @@ export default function Home() {
     }
   }, []);
 
+  const loadSettings = useCallback(async () => {
+    try {
+      const s = await api.getSettings();
+      setIntervalInput(String(s.check_interval_minutes));
+    } catch {
+      /* ignora; mantém o que tiver */
+    }
+  }, []);
+
   useEffect(() => {
     load();
-    const t = setInterval(load, 30000);
+    loadSettings();
+    // Tela principal se atualiza sozinha a cada 10s.
+    const t = setInterval(load, 10000);
     return () => clearInterval(t);
-  }, [load]);
+  }, [load, loadSettings]);
+
+  async function handleRefreshAll() {
+    setRefreshing(true);
+    try {
+      await api.checkAll();
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  async function handleSaveInterval(e) {
+    e.preventDefault();
+    const m = parseInt(intervalInput, 10);
+    if (!Number.isInteger(m) || m < 1) {
+      setError("Intervalo inválido (mínimo 1 minuto).");
+      return;
+    }
+    setSavingInterval(true);
+    try {
+      const s = await api.updateSettings({ check_interval_minutes: m });
+      setIntervalInput(String(s.check_interval_minutes));
+      setError(null);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingInterval(false);
+    }
+  }
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -255,10 +304,16 @@ export default function Home() {
 
       {tab === "painel" && (
         <section className="card">
-          <h2>Painel — farol dos endpoints</h2>
+          <div className="card-head">
+            <h2>Painel — farol dos endpoints</h2>
+            <button onClick={handleRefreshAll} disabled={refreshing}>
+              {refreshing ? "Atualizando…" : "↻ Atualizar todos"}
+            </button>
+          </div>
           <p className="muted" style={{ fontSize: "0.8rem", marginBottom: 14 }}>
             🟢 dentro da média · 🟡 até 50% acima · 🔴 mais de 50% acima (ou
-            falha) · 🔵 sem base ainda · ⚪ sem dados
+            falha) · 🔵 sem base ainda · ⚪ sem dados — atualiza sozinho a cada
+            10s
           </p>
           <Dashboard endpoints={endpoints} loading={loading} />
         </section>
@@ -266,6 +321,31 @@ export default function Home() {
 
       {tab === "admin" && (
         <>
+          <section className="card">
+            <h2>Configuração</h2>
+            <form onSubmit={handleSaveInterval}>
+              <div className="field">
+                <label htmlFor="interval">
+                  Intervalo entre consultas (minutos)
+                </label>
+                <input
+                  id="interval"
+                  type="number"
+                  min="1"
+                  value={intervalInput}
+                  onChange={(e) => setIntervalInput(e.target.value)}
+                />
+              </div>
+              <button type="submit" disabled={savingInterval}>
+                {savingInterval ? "Salvando…" : "Salvar intervalo"}
+              </button>
+            </form>
+            <p className="muted" style={{ marginTop: 10, fontSize: "0.78rem" }}>
+              Aplica imediatamente no agendador e persiste no banco (vale para
+              todos os endpoints).
+            </p>
+          </section>
+
           <section className="card">
             <h2>Novo endpoint</h2>
             <form onSubmit={handleCreate}>

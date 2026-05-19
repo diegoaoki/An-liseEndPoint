@@ -8,12 +8,40 @@ from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from . import models, schemas
-from .database import Base, engine, get_db
+from .database import Base, SessionLocal, engine, get_db
 from .monitor import check_single, run_checks
 
-CHECK_INTERVAL_MINUTES = int(os.getenv("CHECK_INTERVAL_MINUTES", "5"))
+DEFAULT_INTERVAL_MINUTES = int(os.getenv("CHECK_INTERVAL_MINUTES", "5"))
+INTERVAL_KEY = "check_interval_minutes"
+MIN_INTERVAL = 1
+MAX_INTERVAL = 1440  # 24h
 
 scheduler = AsyncIOScheduler()
+
+
+def get_interval(db: Session) -> int:
+    """Lê o intervalo do banco; cria com o default na primeira vez."""
+    row = db.get(models.Setting, INTERVAL_KEY)
+    if row is None:
+        row = models.Setting(key=INTERVAL_KEY, value=str(DEFAULT_INTERVAL_MINUTES))
+        db.add(row)
+        db.commit()
+        return DEFAULT_INTERVAL_MINUTES
+    try:
+        return int(row.value)
+    except ValueError:
+        return DEFAULT_INTERVAL_MINUTES
+
+
+def set_interval(db: Session, minutes: int) -> None:
+    row = db.get(models.Setting, INTERVAL_KEY)
+    if row is None:
+        db.add(models.Setting(key=INTERVAL_KEY, value=str(minutes)))
+    else:
+        row.value = str(minutes)
+    db.commit()
+    # Aplica imediatamente no scheduler já rodando.
+    scheduler.reschedule_job("run_checks", trigger="interval", minutes=minutes)
 
 
 def run_migrations() -> None:
@@ -41,10 +69,16 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     run_migrations()
 
+    db = SessionLocal()
+    try:
+        interval = get_interval(db)
+    finally:
+        db.close()
+
     scheduler.add_job(
         run_checks,
         trigger="interval",
-        minutes=CHECK_INTERVAL_MINUTES,
+        minutes=interval,
         id="run_checks",
         replace_existing=True,
         max_instances=1,
@@ -69,8 +103,34 @@ app.add_middleware(
 
 
 @app.get("/health")
-def health():
-    return {"status": "ok", "check_interval_minutes": CHECK_INTERVAL_MINUTES}
+def health(db: Session = Depends(get_db)):
+    return {"status": "ok", "check_interval_minutes": get_interval(db)}
+
+
+@app.get("/settings", response_model=schemas.SettingsOut)
+def get_settings(db: Session = Depends(get_db)):
+    return schemas.SettingsOut(check_interval_minutes=get_interval(db))
+
+
+@app.put("/settings", response_model=schemas.SettingsOut)
+def update_settings(
+    payload: schemas.SettingsUpdate, db: Session = Depends(get_db)
+):
+    m = payload.check_interval_minutes
+    if not (MIN_INTERVAL <= m <= MAX_INTERVAL):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Intervalo deve estar entre {MIN_INTERVAL} e {MAX_INTERVAL} minutos",
+        )
+    set_interval(db, m)
+    return schemas.SettingsOut(check_interval_minutes=m)
+
+
+@app.post("/check-all")
+async def check_all():
+    """Dispara uma checagem imediata de todos os endpoints ativos."""
+    await run_checks()
+    return {"status": "ok"}
 
 
 # ---------- Endpoints (CRUD) ----------

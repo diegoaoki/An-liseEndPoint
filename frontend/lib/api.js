@@ -35,6 +35,10 @@ export const api = {
     request(`/endpoints/${id}`, { method: "DELETE" }),
   checkNow: (id) =>
     request(`/endpoints/${id}/check`, { method: "POST" }),
+  checkAll: () => request(`/check-all`, { method: "POST" }),
   listResults: (id, limit = 50) =>
     request(`/endpoints/${id}/results?limit=${limit}`),
+  getSettings: () => request(`/settings`),
+  updateSettings: (data) =>
+    request(`/settings`, { method: "PUT", body: JSON.stringify(data) }),
 };

@@ -45,6 +45,15 @@ class Endpoint(Base):
         return bool(self.auth_username or self.auth_password)
 
 
+class Setting(Base):
+    """Configurações chave/valor (ex.: intervalo de checagem)."""
+
+    __tablename__ = "settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(String(255))
+
+
 class CheckResult(Base):
     __tablename__ = "check_results"
 

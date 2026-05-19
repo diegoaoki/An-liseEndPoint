@@ -35,6 +35,14 @@ class EndpointOut(BaseModel):
     has_auth: bool = False
 
 
+class SettingsOut(BaseModel):
+    check_interval_minutes: int
+
+
+class SettingsUpdate(BaseModel):
+    check_interval_minutes: int
+
+
 class CheckResultOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
