@@ -318,3 +318,37 @@ th {
   margin-bottom: 12px;
   font-size: 0.85rem;
 }
+
+/* ---- Status geral (topo da página) ---- */
+.global-banner {
+  border-radius: 10px;
+  padding: 12px 18px;
+  margin-bottom: 18px;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.global-banner .gb-list {
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+.gb-green {
+  background: #064e3b;
+  color: #6ee7b7;
+  font-weight: 700;
+}
+
+.gb-yellow {
+  background: #713f12;
+  color: #fde68a;
+}
+
+.gb-red {
+  background: #7f1d1d;
+  color: #fecaca;
+  animation: alarme 1.2s ease-in-out infinite;
+}

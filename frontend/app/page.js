@@ -120,6 +120,90 @@ function Dashboard({ endpoints, loading }) {
   );
 }
 
+// Componentes da RPE sempre exibidos no board da página inicial.
+const RPE_BOARD = [
+  "API Transacional (Acheron)",
+  "Embossing de cartões",
+  "Cartões",
+  "Motor de Crédito",
+  "Autorizador Private Label",
+  "Autenticação",
+  "Produtos",
+  "Seguros",
+  "Portadores",
+];
+
+// Itens do board: os fixos + qualquer outro componente RPE que não esteja verde.
+function rpeBoardItems(rpe) {
+  const items = rpe?.items || [];
+  const fixed = new Set(RPE_BOARD);
+  const inBoard = RPE_BOARD.map((n) =>
+    items.find((i) => i.component === n)
+  ).filter(Boolean);
+  const extras = items.filter(
+    (i) => !fixed.has(i.component) && statusColor(i.status) !== "green"
+  );
+  return [...inBoard, ...extras];
+}
+
+// PSPs da Linx sempre exibidos no board da página inicial.
+const LINX_BOARD = ["Santander", "Pagar.me"];
+
+function linxBoardItems(linx) {
+  const items = linx?.items || [];
+  const fixed = new Set(LINX_BOARD);
+  const inBoard = items.filter((i) => fixed.has(i.component));
+  const extras = items.filter(
+    (i) => !fixed.has(i.component) && statusColor(i.status) !== "green"
+  );
+  return [...inBoard, ...extras];
+}
+
+// Status geral: considera APIs monitoradas + componentes RPE + PSPs Linx.
+function overallStatus(endpoints, rpe, linx) {
+  const problems = [];
+  const warnings = [];
+  for (const ep of endpoints) {
+    const c = farolStatus(ep).color;
+    if (c === "red") problems.push(ep.name);
+    else if (c === "yellow") warnings.push(ep.name);
+  }
+  for (const it of rpe?.items || []) {
+    const c = statusColor(it.status);
+    if (c === "red") problems.push(`RPE: ${it.component}`);
+    else if (c === "yellow") warnings.push(`RPE: ${it.component}`);
+  }
+  for (const it of linx?.items || []) {
+    const c = statusColor(it.status);
+    if (c === "red") problems.push(`Linx: ${it.component}`);
+    else if (c === "yellow") warnings.push(`Linx: ${it.component}`);
+  }
+  if (problems.length) return { level: "red", problems, warnings };
+  if (warnings.length) return { level: "yellow", problems, warnings };
+  return { level: "green", problems, warnings };
+}
+
+function GlobalBanner({ endpoints, rpe, linx }) {
+  const { level, problems, warnings } = overallStatus(endpoints, rpe, linx);
+  if (level === "green") {
+    return (
+      <div className="global-banner gb-green">✓ Tudo operacional</div>
+    );
+  }
+  const all = [...problems, ...warnings];
+  const label =
+    level === "red"
+      ? `⚠ ${problems.length} item(ns) com problema`
+      : `▲ ${warnings.length} item(ns) em alerta`;
+  return (
+    <div className={`global-banner gb-${level}`}>
+      <strong>{label}</strong>
+      <span className="gb-list">{all.slice(0, 8).join(" · ")}</span>
+      {all.length > 8 && <span> +{all.length - 8}</span>}
+    </div>
+  );
+}
+
 // Mapeia o texto de status (RPE/Linx) numa cor de farol.
 function statusColor(status) {
   const s = (status || "").toLowerCase();
@@ -359,6 +443,7 @@ export default function Home() {
 
   return (
     <main className="container">
+      <GlobalBanner endpoints={endpoints} rpe={rpe} linx={linx} />
       <h1>Endpoint Monitor</h1>
       <p className="subtitle">
         Cadastre endpoints; o backend mede o tempo de resposta automaticamente.
@@ -406,6 +491,24 @@ export default function Home() {
             · 🔵 sem base ainda · ⚪ sem dados — atualiza sozinho a cada 10s
           </p>
           <Dashboard endpoints={endpoints} loading={loading} />
+
+          <h2 style={{ marginTop: 28, marginBottom: 12 }}>Board RPE</h2>
+          <p className="muted" style={{ fontSize: "0.78rem", marginBottom: 12 }}>
+            Componentes-chave da RPE + qualquer outro que não esteja verde.
+          </p>
+          <StatusGrid
+            data={rpe ? { items: rpeBoardItems(rpe) } : null}
+            error={rpeError}
+          />
+
+          <h2 style={{ marginTop: 28, marginBottom: 12 }}>Board Linx</h2>
+          <p className="muted" style={{ fontSize: "0.78rem", marginBottom: 12 }}>
+            PSPs-chave da QrLinx + qualquer outro que não esteja verde.
+          </p>
+          <StatusGrid
+            data={linx ? { items: linxBoardItems(linx) } : null}
+            error={linxError}
+          />
         </section>
       )}
 
