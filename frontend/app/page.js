@@ -473,6 +473,10 @@ export default function Home() {
     auth_password: "",
     verify_ssl: true,
     latency_threshold_ms: "",
+    token_url: "",
+    token_payload: "",
+    token_content_type: "application/x-www-form-urlencoded",
+    token_field: "access_token",
   });
   const [submitting, setSubmitting] = useState(false);
   const [expanded, setExpanded] = useState(null);
@@ -618,6 +622,14 @@ export default function Home() {
       if (Number.isInteger(limit) && limit > 0) {
         payload.latency_threshold_ms = limit;
       }
+      if (form.token_url.trim()) {
+        payload.token_url = form.token_url.trim();
+        payload.token_payload = form.token_payload;
+        payload.token_content_type =
+          form.token_content_type ||
+          "application/x-www-form-urlencoded";
+        payload.token_field = form.token_field || "access_token";
+      }
       await api.createEndpoint(payload);
       setForm({
         name: "",
@@ -627,6 +639,10 @@ export default function Home() {
         auth_password: "",
         verify_ssl: true,
         latency_threshold_ms: "",
+        token_url: "",
+        token_payload: "",
+        token_content_type: "application/x-www-form-urlencoded",
+        token_field: "access_token",
       });
       await load();
     } catch (err) {
@@ -998,6 +1014,77 @@ export default function Home() {
               <button type="submit" disabled={submitting}>
                 {submitting ? "Salvando…" : "Adicionar"}
               </button>
+              <details
+                style={{ width: "100%", marginTop: 4 }}
+                open={!!form.token_url}
+              >
+                <summary
+                  className="muted"
+                  style={{ cursor: "pointer", fontSize: "0.85rem" }}
+                >
+                  OAuth bearer token (opcional)
+                </summary>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 10,
+                    marginTop: 10,
+                    alignItems: "flex-end",
+                  }}
+                >
+                  <div className="field" style={{ flex: 2 }}>
+                    <label>Token URL</label>
+                    <input
+                      style={{ width: "100%" }}
+                      value={form.token_url}
+                      placeholder="https://idp.exemplo/oauth/token"
+                      onChange={(e) =>
+                        setForm({ ...form, token_url: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="field" style={{ flex: 3 }}>
+                    <label>Payload (body)</label>
+                    <input
+                      style={{ width: "100%" }}
+                      value={form.token_payload}
+                      placeholder="grant_type=client_credentials&client_id=X&client_secret=Y&scope=..."
+                      onChange={(e) =>
+                        setForm({ ...form, token_payload: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="field">
+                    <label>Content-Type</label>
+                    <select
+                      value={form.token_content_type}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          token_content_type: e.target.value,
+                        })
+                      }
+                    >
+                      <option value="application/x-www-form-urlencoded">
+                        form-urlencoded
+                      </option>
+                      <option value="application/json">json</option>
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label>Campo do token</label>
+                    <input
+                      style={{ minWidth: 130 }}
+                      value={form.token_field}
+                      placeholder="access_token"
+                      onChange={(e) =>
+                        setForm({ ...form, token_field: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+              </details>
             </form>
             <p
               className="muted"
@@ -1085,6 +1172,14 @@ function FragmentRow({
               style={{ marginLeft: 6 }}
             >
               🔒
+            </span>
+          )}
+          {ep.has_token && (
+            <span
+              title={`Bearer token via ${ep.token_url || "—"}`}
+              style={{ marginLeft: 6 }}
+            >
+              🔑
             </span>
           )}
           <br />
@@ -1208,6 +1303,11 @@ function EditRow({ ep, onSave, onCancel }) {
     auth_password: "",
     verify_ssl: ep.verify_ssl !== false,
     latency_threshold_ms: ep.latency_threshold_ms ?? "",
+    token_url: ep.token_url || "",
+    token_payload: "",
+    token_content_type:
+      ep.token_content_type || "application/x-www-form-urlencoded",
+    token_field: ep.token_field || "access_token",
   });
 
   function submit(e) {
@@ -1226,6 +1326,21 @@ function EditRow({ ep, onSave, onCancel }) {
     };
     // Senha em branco = mantém a atual; preenchida = troca.
     if (f.auth_password) payload.auth_password = f.auth_password;
+    // OAuth: token_url preenchido configura/mantem; vazio limpa tudo.
+    const hadToken = !!ep.token_url;
+    if (f.token_url.trim()) {
+      payload.token_url = f.token_url.trim();
+      payload.token_content_type =
+        f.token_content_type || "application/x-www-form-urlencoded";
+      payload.token_field = f.token_field || "access_token";
+      // Payload em branco = mantem o atual (similar a senha).
+      if (f.token_payload) payload.token_payload = f.token_payload;
+    } else if (hadToken) {
+      payload.token_url = null;
+      payload.token_payload = null;
+      payload.token_content_type = null;
+      payload.token_field = null;
+    }
     onSave(payload);
   }
 
@@ -1314,6 +1429,72 @@ function EditRow({ ep, onSave, onCancel }) {
       <button type="button" className="ghost" onClick={onCancel}>
         Cancelar
       </button>
+      <details
+        style={{ width: "100%", marginTop: 4 }}
+        open={!!f.token_url}
+      >
+        <summary
+          className="muted"
+          style={{ cursor: "pointer", fontSize: "0.85rem" }}
+        >
+          OAuth bearer token (opcional)
+        </summary>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 10,
+            marginTop: 10,
+            alignItems: "flex-end",
+          }}
+        >
+          <div className="field" style={{ flex: 2 }}>
+            <label>Token URL</label>
+            <input
+              style={{ width: "100%" }}
+              value={f.token_url}
+              placeholder="https://idp.exemplo/oauth/token"
+              onChange={(e) => setF({ ...f, token_url: e.target.value })}
+            />
+          </div>
+          <div className="field" style={{ flex: 3 }}>
+            <label>Payload</label>
+            <input
+              style={{ width: "100%" }}
+              value={f.token_payload}
+              placeholder={
+                ep.has_token
+                  ? "manter atual (em branco)"
+                  : "grant_type=client_credentials&client_id=...&client_secret=..."
+              }
+              onChange={(e) => setF({ ...f, token_payload: e.target.value })}
+            />
+          </div>
+          <div className="field">
+            <label>Content-Type</label>
+            <select
+              value={f.token_content_type}
+              onChange={(e) =>
+                setF({ ...f, token_content_type: e.target.value })
+              }
+            >
+              <option value="application/x-www-form-urlencoded">
+                form-urlencoded
+              </option>
+              <option value="application/json">json</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>Campo</label>
+            <input
+              style={{ minWidth: 120 }}
+              value={f.token_field}
+              placeholder="access_token"
+              onChange={(e) => setF({ ...f, token_field: e.target.value })}
+            />
+          </div>
+        </div>
+      </details>
     </form>
   );
 }

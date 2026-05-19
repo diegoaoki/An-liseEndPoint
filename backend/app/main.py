@@ -10,7 +10,12 @@ from sqlalchemy.orm import Session
 from . import models, schemas
 from .database import Base, SessionLocal, engine, get_db
 from .external import fetch_linx_status, fetch_rpe_status
-from .monitor import check_single, preview_endpoint, run_checks
+from .monitor import (
+    check_single,
+    invalidate_token,
+    preview_endpoint,
+    run_checks,
+)
 
 DEFAULT_INTERVAL_MINUTES = int(os.getenv("CHECK_INTERVAL_MINUTES", "5"))
 INTERVAL_KEY = "check_interval_minutes"
@@ -57,6 +62,10 @@ def run_migrations() -> None:
         "auth_password": "VARCHAR(255)",
         "verify_ssl": "BOOLEAN DEFAULT TRUE",
         "latency_threshold_ms": "INTEGER",
+        "token_url": "VARCHAR(2048)",
+        "token_payload": "TEXT",
+        "token_content_type": "VARCHAR(64)",
+        "token_field": "VARCHAR(64)",
     }
     with engine.begin() as conn:
         for col, col_type in new_columns.items():
@@ -268,10 +277,25 @@ def update_endpoint(
     ep = db.get(models.Endpoint, endpoint_id)
     if ep is None:
         raise HTTPException(status_code=404, detail="Endpoint não encontrado")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    for field, value in updates.items():
         setattr(ep, field, value)
     db.commit()
     db.refresh(ep)
+    # Se algo relacionado a auth/token/url mudou, descarta o token cacheado.
+    if any(
+        k in updates
+        for k in (
+            "token_url",
+            "token_payload",
+            "token_content_type",
+            "token_field",
+            "auth_username",
+            "auth_password",
+            "url",
+        )
+    ):
+        invalidate_token(endpoint_id)
     return ep
 
 
@@ -282,6 +306,7 @@ def delete_endpoint(endpoint_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Endpoint não encontrado")
     db.delete(ep)
     db.commit()
+    invalidate_token(endpoint_id)
 
 
 # ---------- Resultados ----------

@@ -12,6 +12,10 @@ class EndpointCreate(BaseModel):
     auth_password: str | None = None
     verify_ssl: bool = True
     latency_threshold_ms: int | None = None
+    token_url: str | None = None
+    token_payload: str | None = None
+    token_content_type: str | None = None
+    token_field: str | None = None
 
 
 class EndpointUpdate(BaseModel):
@@ -23,6 +27,10 @@ class EndpointUpdate(BaseModel):
     auth_password: str | None = None
     verify_ssl: bool | None = None
     latency_threshold_ms: int | None = None
+    token_url: str | None = None
+    token_payload: str | None = None
+    token_content_type: str | None = None
+    token_field: str | None = None
 
 
 class EndpointOut(BaseModel):
@@ -39,6 +47,11 @@ class EndpointOut(BaseModel):
     has_auth: bool = False
     verify_ssl: bool = True
     latency_threshold_ms: int | None = None
+    # token_payload nunca é devolvido (contém client_secret).
+    token_url: str | None = None
+    token_content_type: str | None = None
+    token_field: str | None = None
+    has_token: bool = False
 
 
 class SettingsOut(BaseModel):

@@ -9,22 +9,75 @@ from . import models
 from .database import SessionLocal
 
 REQUEST_TIMEOUT = 30.0
+TOKEN_TIMEOUT = 20.0
+TOKEN_DEFAULT_TTL = 300.0  # 5 min se a resposta não trouxer expires_in
+TOKEN_RENEW_SAFETY = 60.0  # renova com 60s de folga
+
+# Cache em memória: endpoint_id -> (access_token, exp_epoch)
+_token_cache: dict[int, tuple[str, float]] = {}
+
+
+def invalidate_token(endpoint_id: int) -> None:
+    _token_cache.pop(endpoint_id, None)
+
+
+async def _fetch_token(endpoint: models.Endpoint) -> str:
+    """Obtém o access_token (com cache). Lança em caso de falha."""
+    now = time.time()
+    cached = _token_cache.get(endpoint.id)
+    if cached and cached[1] > now:
+        return cached[0]
+
+    content_type = (
+        endpoint.token_content_type or "application/x-www-form-urlencoded"
+    )
+    field = endpoint.token_field or "access_token"
+    verify = endpoint.verify_ssl if endpoint.verify_ssl is not None else True
+
+    async with httpx.AsyncClient(verify=verify) as client:
+        resp = await client.post(
+            endpoint.token_url,
+            content=endpoint.token_payload or "",
+            headers={"Content-Type": content_type},
+            timeout=TOKEN_TIMEOUT,
+            follow_redirects=True,
+        )
+    resp.raise_for_status()
+    data = resp.json()
+    token = data.get(field)
+    if not token:
+        raise RuntimeError(
+            f"Token endpoint não retornou campo '{field}' (chaves: {list(data)[:5]})"
+        )
+    expires_in = data.get("expires_in")
+    ttl = (
+        float(expires_in) - TOKEN_RENEW_SAFETY
+        if isinstance(expires_in, (int, float))
+        else TOKEN_DEFAULT_TTL
+    )
+    if ttl < 30:
+        ttl = 30  # mínimo
+    _token_cache[endpoint.id] = (token, now + ttl)
+    return token
 
 
 async def check_endpoint(endpoint: models.Endpoint) -> models.CheckResult:
-    """Faz um request no endpoint e devolve o resultado (sem persistir).
-
-    Cria um client por checagem porque o `verify` (validar TLS) é
-    configurado por endpoint, não por requisição.
-    """
-    auth = (
-        (endpoint.auth_username or "", endpoint.auth_password or "")
-        if (endpoint.auth_username or endpoint.auth_password)
-        else None
-    )
+    """Faz um request no endpoint e devolve o resultado (sem persistir)."""
     verify = endpoint.verify_ssl if endpoint.verify_ssl is not None else True
+
     start = time.perf_counter()
     try:
+        headers: dict[str, str] = {}
+        auth = None
+        if endpoint.token_url and endpoint.token_payload:
+            token = await _fetch_token(endpoint)
+            headers["Authorization"] = f"Bearer {token}"
+        elif endpoint.auth_username or endpoint.auth_password:
+            auth = (
+                endpoint.auth_username or "",
+                endpoint.auth_password or "",
+            )
+
         async with httpx.AsyncClient(verify=verify) as client:
             resp = await client.request(
                 endpoint.method.upper(),
@@ -32,6 +85,7 @@ async def check_endpoint(endpoint: models.Endpoint) -> models.CheckResult:
                 timeout=REQUEST_TIMEOUT,
                 follow_redirects=True,
                 auth=auth,
+                headers=headers or None,
             )
         elapsed_ms = (time.perf_counter() - start) * 1000
         return models.CheckResult(
@@ -42,6 +96,8 @@ async def check_endpoint(endpoint: models.Endpoint) -> models.CheckResult:
             error=None,
         )
     except Exception as exc:  # noqa: BLE001 - queremos registrar qualquer falha
+        # Token inválido pode ter sido cacheado expirado pelo servidor; limpa.
+        invalidate_token(endpoint.id)
         elapsed_ms = (time.perf_counter() - start) * 1000
         return models.CheckResult(
             endpoint_id=endpoint.id,
@@ -85,17 +141,20 @@ async def preview_endpoint(endpoint_id: int) -> dict | None:
         ep = db.get(models.Endpoint, endpoint_id)
         if ep is None:
             return None
-        auth = (
-            (ep.auth_username or "", ep.auth_password or "")
-            if (ep.auth_username or ep.auth_password)
-            else None
-        )
         verify = ep.verify_ssl if ep.verify_ssl is not None else True
     finally:
         db.close()
 
     start = time.perf_counter()
     try:
+        headers: dict[str, str] = {}
+        auth = None
+        if ep.token_url and ep.token_payload:
+            token = await _fetch_token(ep)
+            headers["Authorization"] = f"Bearer {token}"
+        elif ep.auth_username or ep.auth_password:
+            auth = (ep.auth_username or "", ep.auth_password or "")
+
         async with httpx.AsyncClient(verify=verify) as client:
             resp = await client.request(
                 ep.method.upper(),
@@ -103,6 +162,7 @@ async def preview_endpoint(endpoint_id: int) -> dict | None:
                 timeout=PREVIEW_TIMEOUT,
                 follow_redirects=True,
                 auth=auth,
+                headers=headers or None,
             )
         elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
         text = resp.text or ""
@@ -119,6 +179,7 @@ async def preview_endpoint(endpoint_id: int) -> dict | None:
             "error": None,
         }
     except Exception as exc:  # noqa: BLE001
+        invalidate_token(ep.id)
         elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
         return {
             "status_code": None,

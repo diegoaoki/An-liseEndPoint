@@ -36,6 +36,15 @@ class Endpoint(Base):
     latency_threshold_ms: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )
+    # OAuth2 (opcional): se token_url estiver preenchido, antes de
+    # checar o endpoint o backend faz POST no token_url com o
+    # token_payload e usa Authorization: Bearer <access_token>.
+    token_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    token_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+    token_content_type: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
+    token_field: Mapped[str | None] = mapped_column(String(64), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow
@@ -50,6 +59,10 @@ class Endpoint(Base):
     @property
     def has_auth(self) -> bool:
         return bool(self.auth_username or self.auth_password)
+
+    @property
+    def has_token(self) -> bool:
+        return bool(self.token_url and self.token_payload)
 
 
 class Setting(Base):
