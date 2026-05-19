@@ -159,47 +159,63 @@ function linxBoardItems(linx) {
   return [...inBoard, ...extras];
 }
 
-// Status geral: considera APIs monitoradas + componentes RPE + PSPs Linx.
-function overallStatus(endpoints, rpe, linx) {
-  const problems = [];
-  const warnings = [];
-  for (const ep of endpoints) {
+function levelFromLists(problems, warnings) {
+  if (problems.length) return "red";
+  if (warnings.length) return "yellow";
+  return "green";
+}
+
+// Agrega o status de uma fonte (lista de problemas/alertas).
+function collectEndpoints(endpoints) {
+  const p = [];
+  const w = [];
+  for (const ep of endpoints || []) {
     const c = farolStatus(ep).color;
-    if (c === "red") problems.push(ep.name);
-    else if (c === "yellow") warnings.push(ep.name);
+    if (c === "red") p.push(ep.name);
+    else if (c === "yellow") w.push(ep.name);
   }
-  for (const it of rpe?.items || []) {
+  return { p, w };
+}
+
+function collectItems(items) {
+  const p = [];
+  const w = [];
+  for (const it of items || []) {
     const c = statusColor(it.status);
-    if (c === "red") problems.push(`RPE: ${it.component}`);
-    else if (c === "yellow") warnings.push(`RPE: ${it.component}`);
+    if (c === "red") p.push(it.component);
+    else if (c === "yellow") w.push(it.component);
   }
-  for (const it of linx?.items || []) {
-    const c = statusColor(it.status);
-    if (c === "red") problems.push(`Linx: ${it.component}`);
-    else if (c === "yellow") warnings.push(`Linx: ${it.component}`);
-  }
-  if (problems.length) return { level: "red", problems, warnings };
-  if (warnings.length) return { level: "yellow", problems, warnings };
-  return { level: "green", problems, warnings };
+  return { p, w };
+}
+
+function StatusChip({ label, problems, warnings }) {
+  const level = levelFromLists(problems, warnings);
+  const text =
+    level === "green"
+      ? "Operacional"
+      : level === "red"
+        ? `${problems.length} com problema`
+        : `${warnings.length} em alerta`;
+  const title = [...problems, ...warnings].join(" · ");
+  return (
+    <div className={`status-chip sc-${level}`} title={title}>
+      <span className={`farol farol-${level}`} />
+      <span>
+        <strong>{label}</strong> — {text}
+      </span>
+    </div>
+  );
 }
 
 function GlobalBanner({ endpoints, rpe, linx }) {
-  const { level, problems, warnings } = overallStatus(endpoints, rpe, linx);
-  if (level === "green") {
-    return (
-      <div className="global-banner gb-green">✓ Tudo operacional</div>
-    );
-  }
-  const all = [...problems, ...warnings];
-  const label =
-    level === "red"
-      ? `⚠ ${problems.length} item(ns) com problema`
-      : `▲ ${warnings.length} item(ns) em alerta`;
+  const a = collectEndpoints(endpoints);
+  const l = collectItems(linx?.items);
+  const r = collectItems(rpe?.items);
   return (
-    <div className={`global-banner gb-${level}`}>
-      <strong>{label}</strong>
-      <span className="gb-list">{all.slice(0, 8).join(" · ")}</span>
-      {all.length > 8 && <span> +{all.length - 8}</span>}
+    <div className="status-row">
+      <StatusChip label="APIs" problems={a.p} warnings={a.w} />
+      <StatusChip label="Linx" problems={l.p} warnings={l.w} />
+      <StatusChip label="RPE" problems={r.p} warnings={r.w} />
     </div>
   );
 }

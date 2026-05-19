@@ -319,35 +319,42 @@ th {
   font-size: 0.85rem;
 }
 
-/* ---- Status geral (topo da página) ---- */
-.global-banner {
-  border-radius: 10px;
-  padding: 12px 18px;
-  margin-bottom: 18px;
-  font-size: 0.95rem;
+/* ---- Status geral por fonte (topo da página) ---- */
+.status-row {
   display: flex;
-  align-items: baseline;
   gap: 12px;
+  margin-bottom: 18px;
   flex-wrap: wrap;
 }
 
-.global-banner .gb-list {
-  font-size: 0.8rem;
-  opacity: 0.85;
+.status-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  flex: 1;
+  min-width: 200px;
 }
 
-.gb-green {
+.status-chip .farol {
+  width: 14px;
+  height: 14px;
+  margin-top: 0;
+}
+
+.sc-green {
   background: #064e3b;
   color: #6ee7b7;
-  font-weight: 700;
 }
 
-.gb-yellow {
+.sc-yellow {
   background: #713f12;
   color: #fde68a;
 }
 
-.gb-red {
+.sc-red {
   background: #7f1d1d;
   color: #fecaca;
   animation: alarme 1.2s ease-in-out infinite;
