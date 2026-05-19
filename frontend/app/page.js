@@ -64,14 +64,17 @@ function farolStatus(ep) {
   return { color: "red", texto: `Muito lento (+${pct}% da média)` };
 }
 
-function Farol({ ep }) {
+function Farol({ ep, domId }) {
   const { color, texto } = farolStatus(ep);
   const last = ep.last_result;
   const avg = ep.avg_response_time_ms;
   // Card agressivo quando a última consulta falhou (endpoint fora do ar).
   const isDown = last && !last.success;
   return (
-    <div className={isDown ? "dash-card dash-card-down" : "dash-card"}>
+    <div
+      id={domId}
+      className={isDown ? "dash-card dash-card-down" : "dash-card"}
+    >
       {isDown && <div className="down-banner">⚠ FORA DO AR</div>}
       <div className="dash-head">
         <span className={`farol farol-${color}`} title={texto} />
@@ -114,7 +117,7 @@ function Dashboard({ endpoints, loading }) {
   return (
     <div className="dash-grid">
       {endpoints.map((ep) => (
-        <Farol key={ep.id} ep={ep} />
+        <Farol key={ep.id} ep={ep} domId={`api-card-${ep.id}`} />
       ))}
     </div>
   );
@@ -188,7 +191,29 @@ function collectItems(items) {
   return { p, w };
 }
 
-function StatusChip({ label, problems, warnings }) {
+// id do DOM do primeiro endpoint afetado (prioriza amarelo, depois vermelho).
+function firstAffectedApi(endpoints) {
+  let red = null;
+  for (const ep of endpoints || []) {
+    const c = farolStatus(ep).color;
+    if (c === "yellow") return `api-card-${ep.id}`;
+    if (c === "red" && red === null) red = `api-card-${ep.id}`;
+  }
+  return red;
+}
+
+// id do DOM do primeiro item afetado dentro de uma lista de board.
+function firstAffectedItems(items, prefix) {
+  let red = null;
+  for (let i = 0; i < items.length; i++) {
+    const c = statusColor(items[i].status);
+    if (c === "yellow") return `${prefix}-card-${i}`;
+    if (c === "red" && red === null) red = `${prefix}-card-${i}`;
+  }
+  return red;
+}
+
+function StatusChip({ label, problems, warnings, targetId, onNavigate }) {
   const level = levelFromLists(problems, warnings);
   const text =
     level === "green"
@@ -196,26 +221,53 @@ function StatusChip({ label, problems, warnings }) {
       : level === "red"
         ? `${problems.length} com problema`
         : `${warnings.length} em alerta`;
-  const title = [...problems, ...warnings].join(" · ");
+  const clickable = level !== "green" && targetId;
+  const title = clickable
+    ? `Clique para ir ao card · ${[...problems, ...warnings].join(" · ")}`
+    : [...problems, ...warnings].join(" · ");
   return (
-    <div className={`status-chip sc-${level}`} title={title}>
+    <div
+      className={`status-chip sc-${level}${clickable ? " clickable" : ""}`}
+      title={title}
+      onClick={clickable ? () => onNavigate(targetId) : undefined}
+      role={clickable ? "button" : undefined}
+    >
       <span className={`farol farol-${level}`} />
       <span>
         <strong>{label}</strong> — {text}
+        {clickable && <span className="chip-go"> →</span>}
       </span>
     </div>
   );
 }
 
-function GlobalBanner({ endpoints, rpe, linx }) {
+function GlobalBanner({ endpoints, rpe, linx, onNavigate }) {
   const a = collectEndpoints(endpoints);
   const l = collectItems(linx?.items);
   const r = collectItems(rpe?.items);
   return (
     <div className="status-row">
-      <StatusChip label="APIs" problems={a.p} warnings={a.w} />
-      <StatusChip label="Linx" problems={l.p} warnings={l.w} />
-      <StatusChip label="RPE" problems={r.p} warnings={r.w} />
+      <StatusChip
+        label="APIs"
+        problems={a.p}
+        warnings={a.w}
+        targetId={firstAffectedApi(endpoints)}
+        onNavigate={onNavigate}
+      />
+      <StatusChip
+        label="Linx"
+        problems={l.p}
+        warnings={l.w}
+        targetId={firstAffectedItems(linxBoardItems(linx), "linx")}
+        onNavigate={onNavigate}
+      />
+      <StatusChip
+        label="RPE"
+        problems={r.p}
+        warnings={r.w}
+        targetId={firstAffectedItems(rpeBoardItems(rpe), "rpe")}
+        onNavigate={onNavigate}
+      />
     </div>
   );
 }
@@ -232,7 +284,7 @@ function statusColor(status) {
   return "red";
 }
 
-function StatusGrid({ data, error }) {
+function StatusGrid({ data, error, idPrefix }) {
   if (error) return <div className="error-msg">⚠ {error}</div>;
   if (!data) return <p className="muted">Carregando…</p>;
   if (!data.items?.length)
@@ -245,6 +297,7 @@ function StatusGrid({ data, error }) {
         return (
           <div
             key={`${it.component}-${i}`}
+            id={idPrefix ? `${idPrefix}-card-${i}` : undefined}
             className={down ? "dash-card dash-card-down" : "dash-card"}
           >
             {down && <div className="down-banner">⚠ {it.status}</div>}
@@ -345,6 +398,18 @@ export default function Home() {
     }, 10000);
     return () => clearInterval(t);
   }, [load, loadSettings, loadRpe, loadLinx]);
+
+  function goToCard(id) {
+    setTab("painel");
+    // Espera o Painel renderizar antes de rolar até o card.
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("flash");
+      setTimeout(() => el.classList.remove("flash"), 2000);
+    }, 80);
+  }
 
   async function handleRefreshAll() {
     setRefreshing(true);
@@ -459,7 +524,12 @@ export default function Home() {
 
   return (
     <main className="container">
-      <GlobalBanner endpoints={endpoints} rpe={rpe} linx={linx} />
+      <GlobalBanner
+        endpoints={endpoints}
+        rpe={rpe}
+        linx={linx}
+        onNavigate={goToCard}
+      />
       <h1>Endpoint Monitor</h1>
       <p className="subtitle">
         Cadastre endpoints; o backend mede o tempo de resposta automaticamente.
@@ -515,6 +585,7 @@ export default function Home() {
           <StatusGrid
             data={rpe ? { items: rpeBoardItems(rpe) } : null}
             error={rpeError}
+            idPrefix="rpe"
           />
 
           <h2 style={{ marginTop: 28, marginBottom: 12 }}>Board Linx</h2>
@@ -524,6 +595,7 @@ export default function Home() {
           <StatusGrid
             data={linx ? { items: linxBoardItems(linx) } : null}
             error={linxError}
+            idPrefix="linx"
           />
         </section>
       )}

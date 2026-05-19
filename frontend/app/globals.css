@@ -359,3 +359,33 @@ th {
   color: #fecaca;
   animation: alarme 1.2s ease-in-out infinite;
 }
+
+.status-chip.clickable {
+  cursor: pointer;
+  transition: transform 0.1s ease, filter 0.1s ease;
+}
+
+.status-chip.clickable:hover {
+  filter: brightness(1.18);
+  transform: translateY(-1px);
+}
+
+.chip-go {
+  font-weight: 800;
+}
+
+/* Destaque temporário do card alvo após clicar no chip. */
+.flash {
+  animation: flash-card 1.6s ease-in-out;
+}
+
+@keyframes flash-card {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0);
+  }
+  20%,
+  60% {
+    box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.9);
+  }
+}
