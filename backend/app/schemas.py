@@ -11,6 +11,7 @@ class EndpointCreate(BaseModel):
     auth_username: str | None = None
     auth_password: str | None = None
     verify_ssl: bool = True
+    latency_threshold_ms: int | None = None
 
 
 class EndpointUpdate(BaseModel):
@@ -21,6 +22,7 @@ class EndpointUpdate(BaseModel):
     auth_username: str | None = None
     auth_password: str | None = None
     verify_ssl: bool | None = None
+    latency_threshold_ms: int | None = None
 
 
 class EndpointOut(BaseModel):
@@ -36,6 +38,7 @@ class EndpointOut(BaseModel):
     auth_username: str | None = None
     has_auth: bool = False
     verify_ssl: bool = True
+    latency_threshold_ms: int | None = None
 
 
 class SettingsOut(BaseModel):

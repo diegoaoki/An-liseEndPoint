@@ -56,6 +56,7 @@ def run_migrations() -> None:
         "auth_username": "VARCHAR(255)",
         "auth_password": "VARCHAR(255)",
         "verify_ssl": "BOOLEAN DEFAULT TRUE",
+        "latency_threshold_ms": "INTEGER",
     }
     with engine.begin() as conn:
         for col, col_type in new_columns.items():

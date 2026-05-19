@@ -47,9 +47,20 @@ const RED_THRESHOLD = 1.5; // acima de +50% é vermelho (entre os dois = amarelo
 function farolStatus(ep) {
   const last = ep.last_result;
   if (!last) return { color: "gray", texto: "Sem dados" };
-  if (!last.success) return { color: "red", texto: "Falha na última consulta" };
-  const avg = ep.avg_response_time_ms;
+  if (!last.success) return { color: "red", texto: "Fora do ar" };
   const lastMs = last.response_time_ms;
+
+  // Limite fixo definido para este endpoint: ignora a média.
+  const limit = ep.latency_threshold_ms;
+  if (limit != null) {
+    if (lastMs == null) return { color: "blue", texto: "Sem leitura ainda" };
+    if (lastMs <= limit) {
+      return { color: "green", texto: `Dentro do limite (${limit} ms)` };
+    }
+    return { color: "yellow", texto: `Acima do limite (${limit} ms)` };
+  }
+
+  const avg = ep.avg_response_time_ms;
   if (avg == null || lastMs == null) {
     return { color: "blue", texto: "Sem base de comparação ainda" };
   }
@@ -333,6 +344,7 @@ export default function Home() {
     auth_username: "",
     auth_password: "",
     verify_ssl: true,
+    latency_threshold_ms: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [expanded, setExpanded] = useState(null);
@@ -460,6 +472,10 @@ export default function Home() {
         payload.auth_username = form.auth_username.trim();
         payload.auth_password = form.auth_password;
       }
+      const limit = parseInt(form.latency_threshold_ms, 10);
+      if (Number.isInteger(limit) && limit > 0) {
+        payload.latency_threshold_ms = limit;
+      }
       await api.createEndpoint(payload);
       setForm({
         name: "",
@@ -468,23 +484,13 @@ export default function Home() {
         auth_username: "",
         auth_password: "",
         verify_ssl: true,
+        latency_threshold_ms: "",
       });
       await load();
     } catch (err) {
       setError(err.message);
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  async function handleDelete(id) {
-    if (!confirm(`Remover o endpoint #${id}? O histórico também será apagado.`))
-      return;
-    try {
-      await api.deleteEndpoint(id);
-      await load();
-    } catch (err) {
-      setError(err.message);
     }
   }
 
@@ -500,6 +506,22 @@ export default function Home() {
   async function handleToggleSsl(ep) {
     try {
       await api.updateEndpoint(ep.id, { verify_ssl: !ep.verify_ssl });
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleSetThreshold(ep, raw) {
+    const trimmed = String(raw).trim();
+    const value = trimmed === "" ? null : parseInt(trimmed, 10);
+    if (value !== null && (!Number.isInteger(value) || value <= 0)) {
+      setError("Limite inválido (use um número de ms maior que 0).");
+      return;
+    }
+    if ((ep.latency_threshold_ms ?? null) === value) return; // sem mudança
+    try {
+      await api.updateEndpoint(ep.id, { latency_threshold_ms: value });
       await load();
     } catch (err) {
       setError(err.message);
@@ -755,6 +777,23 @@ export default function Home() {
                   Verificar
                 </label>
               </div>
+              <div className="field">
+                <label htmlFor="latency_threshold_ms">Limite (ms)</label>
+                <input
+                  id="latency_threshold_ms"
+                  type="number"
+                  min="1"
+                  style={{ minWidth: 110 }}
+                  placeholder="opcional"
+                  value={form.latency_threshold_ms}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      latency_threshold_ms: e.target.value,
+                    })
+                  }
+                />
+              </div>
               <button type="submit" disabled={submitting}>
                 {submitting ? "Salvando…" : "Adicionar"}
               </button>
@@ -784,6 +823,7 @@ export default function Home() {
                     <th>Tempo</th>
                     <th>Checado em</th>
                     <th>Próxima consulta</th>
+                    <th>Limite (ms)</th>
                     <th>Ações</th>
                   </tr>
                 </thead>
@@ -798,7 +838,7 @@ export default function Home() {
                       onCheckNow={() => handleCheckNow(ep.id)}
                       onToggleActive={() => handleToggle(ep)}
                       onToggleSsl={() => handleToggleSsl(ep)}
-                      onDelete={() => handleDelete(ep.id)}
+                      onSetThreshold={(v) => handleSetThreshold(ep, v)}
                     />
                   ))}
                 </tbody>
@@ -819,7 +859,7 @@ function FragmentRow({
   onCheckNow,
   onToggleActive,
   onToggleSsl,
-  onDelete,
+  onSetThreshold,
 }) {
   const last = ep.last_result;
   return (
@@ -862,6 +902,21 @@ function FragmentRow({
         <td className="muted">{fmtTime(last?.checked_at)}</td>
         <td className="muted">{fmtNext(ep.next_check_at, ep.is_active)}</td>
         <td>
+          <input
+            type="number"
+            min="1"
+            key={ep.latency_threshold_ms ?? "none"}
+            defaultValue={ep.latency_threshold_ms ?? ""}
+            placeholder="média"
+            title="Vazio = usa a média. Definido = amarelo acima deste valor."
+            style={{ minWidth: 80, width: 90, padding: "6px 8px" }}
+            onBlur={(e) => onSetThreshold(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+            }}
+          />
+        </td>
+        <td>
           <div className="row-actions">
             <button className="ghost" onClick={onToggleExpand}>
               {expanded ? "Ocultar" : "Histórico"}
@@ -870,7 +925,7 @@ function FragmentRow({
               Checar agora
             </button>
             <button className="ghost" onClick={onToggleActive}>
-              {ep.is_active ? "Pausar" : "Ativar"}
+              {ep.is_active ? "Desativar" : "Ativar"}
             </button>
             <button
               className="ghost"
@@ -879,15 +934,12 @@ function FragmentRow({
             >
               {ep.verify_ssl === false ? "SSL: ligar" : "SSL: desligar"}
             </button>
-            <button className="danger" onClick={onDelete}>
-              Excluir
-            </button>
           </div>
         </td>
       </tr>
       {expanded && (
         <tr className="history-row">
-          <td colSpan={7}>
+          <td colSpan={8}>
             {!history ? (
               <span className="muted">Carregando histórico…</span>
             ) : history.length === 0 ? (

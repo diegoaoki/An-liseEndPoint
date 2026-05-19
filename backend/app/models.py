@@ -31,6 +31,11 @@ class Endpoint(Base):
     auth_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Verificar certificado TLS? Desligue para hosts com cert inválido.
     verify_ssl: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Limite de tempo de resposta (ms). Se definido, o farol usa este
+    # valor (amarelo acima dele) em vez da média.
+    latency_threshold_ms: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow
