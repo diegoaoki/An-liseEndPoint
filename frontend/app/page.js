@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { api } from "../lib/api";
 
 const METHODS = ["GET", "POST", "HEAD", "PUT", "DELETE"];
@@ -118,6 +118,134 @@ function Farol({ ep, domId }) {
         {texto} · checado {fmtTime(last?.checked_at)}
       </div>
     </div>
+  );
+}
+
+function tryPrettyJson(text, contentType) {
+  // Se o tipo for JSON (ou começar com {/[), tenta formatar.
+  const ct = (contentType || "").toLowerCase();
+  const looksJson = ct.includes("json") || /^\s*[\[{]/.test(text || "");
+  if (!looksJson) return text;
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2);
+  } catch {
+    return text;
+  }
+}
+
+function LogTable({ rows }) {
+  const [opened, setOpened] = useState({}); // { [rowId]: {loading, data, error} }
+
+  async function loadPreview(row) {
+    setOpened((s) => ({ ...s, [row.id]: { loading: true } }));
+    try {
+      const data = await api.previewEndpoint(row.endpoint_id);
+      setOpened((s) => ({ ...s, [row.id]: { loading: false, data } }));
+    } catch (e) {
+      setOpened((s) => ({
+        ...s,
+        [row.id]: { loading: false, error: e.message },
+      }));
+    }
+  }
+
+  function toggle(row) {
+    setOpened((s) => {
+      if (s[row.id]) {
+        const ns = { ...s };
+        delete ns[row.id];
+        return ns;
+      }
+      return s;
+    });
+    if (!opened[row.id]) loadPreview(row);
+  }
+
+  if (!rows || rows.length === 0)
+    return <p className="muted">Sem registros ainda.</p>;
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Quando</th>
+          <th>Endpoint</th>
+          <th>Resultado</th>
+          <th>Tempo</th>
+          <th>Erro</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => {
+          const o = opened[r.id];
+          return (
+            <Fragment key={r.id}>
+              <tr>
+                <td className="muted">{fmtTime(r.checked_at)}</td>
+                <td>
+                  <strong>{r.endpoint_name}</strong>{" "}
+                  <span className="muted">#{r.endpoint_id}</span>
+                </td>
+                <td>
+                  {r.success ? (
+                    <span className="badge ok">{r.status_code} OK</span>
+                  ) : (
+                    <span className="badge fail">
+                      {r.status_code ? `HTTP ${r.status_code}` : "falha"}
+                    </span>
+                  )}
+                </td>
+                <td>{fmtMs(r.response_time_ms)}</td>
+                <td className="muted" style={{ fontSize: "0.78rem" }}>
+                  {r.error || "—"}
+                </td>
+                <td>
+                  <button className="ghost" onClick={() => toggle(r)}>
+                    {o ? "Ocultar" : "Ver retorno"}
+                  </button>
+                </td>
+              </tr>
+              {o && (
+                <tr className="history-row">
+                  <td colSpan={6}>
+                    {o.loading && (
+                      <span className="muted">Carregando retorno ao vivo…</span>
+                    )}
+                    {o.error && (
+                      <div className="error-msg">⚠ {o.error}</div>
+                    )}
+                    {o.data && (
+                      <div>
+                        <div
+                          className="muted"
+                          style={{ fontSize: "0.78rem", marginBottom: 6 }}
+                        >
+                          <strong>Live</strong> · status{" "}
+                          {o.data.status_code ?? "—"} ·{" "}
+                          {fmtMs(o.data.response_time_ms)} ·{" "}
+                          {o.data.content_type || "—"}
+                          {o.data.truncated && " · (truncado em 64 KB)"}
+                        </div>
+                        {o.data.error ? (
+                          <pre className="preview-pre fail-pre">
+                            {o.data.error}
+                          </pre>
+                        ) : (
+                          <pre className="preview-pre">
+                            {tryPrettyJson(o.data.body, o.data.content_type) ||
+                              "(corpo vazio)"}
+                          </pre>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              )}
+            </Fragment>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 
@@ -357,6 +485,8 @@ export default function Home() {
   const [rpeError, setRpeError] = useState(null);
   const [linx, setLinx] = useState(null);
   const [linxError, setLinxError] = useState(null);
+  const [logs, setLogs] = useState([]);
+  const [logsOnlyFailures, setLogsOnlyFailures] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -399,19 +529,30 @@ export default function Home() {
     }
   }, []);
 
+  const loadLogs = useCallback(async () => {
+    try {
+      const d = await api.logs(150, logsOnlyFailures);
+      setLogs(d);
+    } catch {
+      /* silencioso pra nao poluir; um erro aqui ja apareceria no banner geral */
+    }
+  }, [logsOnlyFailures]);
+
   useEffect(() => {
     load();
     loadSettings();
     loadRpe();
     loadLinx();
+    loadLogs();
     // Tela principal se atualiza sozinha a cada 10s.
     const t = setInterval(() => {
       load();
       loadRpe();
       loadLinx();
+      loadLogs();
     }, 10000);
     return () => clearInterval(t);
-  }, [load, loadSettings, loadRpe, loadLinx]);
+  }, [load, loadSettings, loadRpe, loadLinx, loadLogs]);
 
   function goToCard(id) {
     setTab("painel");
@@ -600,6 +741,12 @@ export default function Home() {
           Status Linx
         </button>
         <button
+          className={tab === "log" ? "tab active" : "tab"}
+          onClick={() => setTab("log")}
+        >
+          Log
+        </button>
+        <button
           className={tab === "admin" ? "tab active" : "tab"}
           onClick={() => setTab("admin")}
         >
@@ -672,6 +819,38 @@ export default function Home() {
             10s (cache de 60s no servidor)
           </p>
           <StatusGrid data={linx} error={linxError} />
+        </section>
+      )}
+
+      {tab === "log" && (
+        <section className="card">
+          <div className="card-head">
+            <h2>Log de checagens</h2>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <label
+                style={{
+                  display: "flex",
+                  gap: 6,
+                  alignItems: "center",
+                  fontSize: "0.85rem",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  style={{ minWidth: "auto", width: 16, height: 16 }}
+                  checked={logsOnlyFailures}
+                  onChange={(e) => setLogsOnlyFailures(e.target.checked)}
+                />
+                Só falhas
+              </label>
+              <button onClick={loadLogs}>↻ Atualizar</button>
+            </div>
+          </div>
+          <p className="muted" style={{ fontSize: "0.78rem", marginBottom: 14 }}>
+            Histórico de todas as checagens (sucesso e falha), ordenado da mais
+            recente. Atualiza sozinho a cada 10s.
+          </p>
+          <LogTable rows={logs} />
         </section>
       )}
 

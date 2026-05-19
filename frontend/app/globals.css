@@ -389,3 +389,24 @@ th {
     box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.9);
   }
 }
+
+/* Bloco de preview do retorno (corpo da resposta ao vivo). */
+.preview-pre {
+  background: #020617;
+  border: 1px solid #334155;
+  color: #e2e8f0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 360px;
+  overflow: auto;
+  margin: 0;
+}
+
+.fail-pre {
+  border-color: #7f1d1d;
+  color: #fecaca;
+}

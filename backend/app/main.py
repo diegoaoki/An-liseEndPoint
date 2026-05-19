@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from . import models, schemas
 from .database import Base, SessionLocal, engine, get_db
 from .external import fetch_linx_status, fetch_rpe_status
-from .monitor import check_single, run_checks
+from .monitor import check_single, preview_endpoint, run_checks
 
 DEFAULT_INTERVAL_MINUTES = int(os.getenv("CHECK_INTERVAL_MINUTES", "5"))
 INTERVAL_KEY = "check_interval_minutes"
@@ -160,6 +160,43 @@ async def linx_status():
         )
 
 
+# ---------- Log global ----------
+
+
+@app.get("/results")
+def list_all_results(
+    limit: int = 100,
+    only_failures: bool = False,
+    db: Session = Depends(get_db),
+):
+    """Log unificado: ultimas checagens de TODOS os endpoints."""
+    limit = max(1, min(limit, 1000))
+    q = (
+        db.query(models.CheckResult, models.Endpoint.name)
+        .join(
+            models.Endpoint,
+            models.CheckResult.endpoint_id == models.Endpoint.id,
+        )
+        .order_by(models.CheckResult.checked_at.desc())
+    )
+    if only_failures:
+        q = q.filter(models.CheckResult.success.is_(False))
+    rows = q.limit(limit).all()
+    return [
+        {
+            "id": r.id,
+            "endpoint_id": r.endpoint_id,
+            "endpoint_name": name,
+            "status_code": r.status_code,
+            "response_time_ms": r.response_time_ms,
+            "success": r.success,
+            "error": r.error,
+            "checked_at": r.checked_at,
+        }
+        for (r, name) in rows
+    ]
+
+
 # ---------- Endpoints (CRUD) ----------
 
 
@@ -277,6 +314,15 @@ def list_results(
 )
 async def check_now(endpoint_id: int):
     result = await check_single(endpoint_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Endpoint não encontrado")
+    return result
+
+
+@app.post("/endpoints/{endpoint_id}/preview")
+async def preview_endpoint_route(endpoint_id: int):
+    """Faz uma requisição ao vivo e devolve o corpo da resposta."""
+    result = await preview_endpoint(endpoint_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Endpoint não encontrado")
     return result

@@ -35,6 +35,8 @@ export const api = {
     request(`/endpoints/${id}`, { method: "DELETE" }),
   checkNow: (id) =>
     request(`/endpoints/${id}/check`, { method: "POST" }),
+  previewEndpoint: (id) =>
+    request(`/endpoints/${id}/preview`, { method: "POST" }),
   checkAll: () => request(`/check-all`, { method: "POST" }),
   listResults: (id, limit = 50) =>
     request(`/endpoints/${id}/results?limit=${limit}`),
@@ -43,4 +45,8 @@ export const api = {
     request(`/settings`, { method: "PUT", body: JSON.stringify(data) }),
   rpeStatus: () => request(`/external/rpe-status`),
   linxStatus: () => request(`/external/linx-status`),
+  logs: (limit = 100, onlyFailures = false) =>
+    request(
+      `/results?limit=${limit}${onlyFailures ? "&only_failures=true" : ""}`
+    ),
 };

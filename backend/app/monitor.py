@@ -74,6 +74,63 @@ async def run_checks() -> None:
         db.close()
 
 
+PREVIEW_MAX_BODY = 64 * 1024  # 64 KB
+PREVIEW_TIMEOUT = 30.0
+
+
+async def preview_endpoint(endpoint_id: int) -> dict | None:
+    """Faz uma requisição AO VIVO e devolve o corpo da resposta (sem persistir)."""
+    db = SessionLocal()
+    try:
+        ep = db.get(models.Endpoint, endpoint_id)
+        if ep is None:
+            return None
+        auth = (
+            (ep.auth_username or "", ep.auth_password or "")
+            if (ep.auth_username or ep.auth_password)
+            else None
+        )
+        verify = ep.verify_ssl if ep.verify_ssl is not None else True
+    finally:
+        db.close()
+
+    start = time.perf_counter()
+    try:
+        async with httpx.AsyncClient(verify=verify) as client:
+            resp = await client.request(
+                ep.method.upper(),
+                ep.url,
+                timeout=PREVIEW_TIMEOUT,
+                follow_redirects=True,
+                auth=auth,
+            )
+        elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
+        text = resp.text or ""
+        truncated = len(text) > PREVIEW_MAX_BODY
+        if truncated:
+            text = text[:PREVIEW_MAX_BODY]
+        return {
+            "status_code": resp.status_code,
+            "response_time_ms": elapsed_ms,
+            "content_type": resp.headers.get("content-type"),
+            "body": text,
+            "truncated": truncated,
+            "success": 200 <= resp.status_code < 400,
+            "error": None,
+        }
+    except Exception as exc:  # noqa: BLE001
+        elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
+        return {
+            "status_code": None,
+            "response_time_ms": elapsed_ms,
+            "content_type": None,
+            "body": None,
+            "truncated": False,
+            "success": False,
+            "error": f"{type(exc).__name__}: {exc}"[:500],
+        }
+
+
 async def check_single(endpoint_id: int) -> models.CheckResult | None:
     """Checagem manual de um endpoint específico (botão 'checar agora')."""
     db = SessionLocal()
