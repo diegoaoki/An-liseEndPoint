@@ -348,6 +348,7 @@ export default function Home() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [expanded, setExpanded] = useState(null);
+  const [editId, setEditId] = useState(null);
   const [history, setHistory] = useState({});
   const [refreshing, setRefreshing] = useState(false);
   const [intervalInput, setIntervalInput] = useState("");
@@ -506,6 +507,16 @@ export default function Home() {
   async function handleToggleSsl(ep) {
     try {
       await api.updateEndpoint(ep.id, { verify_ssl: !ep.verify_ssl });
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleSaveEdit(id, payload) {
+    try {
+      await api.updateEndpoint(id, payload);
+      setEditId(null);
       await load();
     } catch (err) {
       setError(err.message);
@@ -839,6 +850,10 @@ export default function Home() {
                       onToggleActive={() => handleToggle(ep)}
                       onToggleSsl={() => handleToggleSsl(ep)}
                       onSetThreshold={(v) => handleSetThreshold(ep, v)}
+                      isEditing={editId === ep.id}
+                      onEdit={() => setEditId(ep.id)}
+                      onCancelEdit={() => setEditId(null)}
+                      onSaveEdit={(payload) => handleSaveEdit(ep.id, payload)}
                     />
                   ))}
                 </tbody>
@@ -860,6 +875,10 @@ function FragmentRow({
   onToggleActive,
   onToggleSsl,
   onSetThreshold,
+  isEditing,
+  onEdit,
+  onCancelEdit,
+  onSaveEdit,
 }) {
   const last = ep.last_result;
   return (
@@ -924,6 +943,9 @@ function FragmentRow({
             <button className="ghost" onClick={onCheckNow}>
               Checar agora
             </button>
+            <button className="ghost" onClick={onEdit}>
+              Editar
+            </button>
             <button className="ghost" onClick={onToggleActive}>
               {ep.is_active ? "Desativar" : "Ativar"}
             </button>
@@ -937,6 +959,13 @@ function FragmentRow({
           </div>
         </td>
       </tr>
+      {isEditing && (
+        <tr className="history-row">
+          <td colSpan={8}>
+            <EditRow ep={ep} onSave={onSaveEdit} onCancel={onCancelEdit} />
+          </td>
+        </tr>
+      )}
       {expanded && (
         <tr className="history-row">
           <td colSpan={8}>
@@ -972,5 +1001,124 @@ function FragmentRow({
         </tr>
       )}
     </>
+  );
+}
+
+function EditRow({ ep, onSave, onCancel }) {
+  const [f, setF] = useState({
+    name: ep.name,
+    url: ep.url,
+    method: ep.method,
+    auth_username: ep.auth_username || "",
+    auth_password: "",
+    verify_ssl: ep.verify_ssl !== false,
+    latency_threshold_ms: ep.latency_threshold_ms ?? "",
+  });
+
+  function submit(e) {
+    e.preventDefault();
+    if (!f.name.trim() || !f.url.trim()) return;
+    const limitRaw = String(f.latency_threshold_ms).trim();
+    const limit = limitRaw === "" ? null : parseInt(limitRaw, 10);
+    if (limit !== null && (!Number.isInteger(limit) || limit <= 0)) return;
+    const payload = {
+      name: f.name.trim(),
+      url: f.url.trim(),
+      method: f.method,
+      verify_ssl: f.verify_ssl,
+      auth_username: f.auth_username.trim() ? f.auth_username.trim() : null,
+      latency_threshold_ms: limit,
+    };
+    // Senha em branco = mantém a atual; preenchida = troca.
+    if (f.auth_password) payload.auth_password = f.auth_password;
+    onSave(payload);
+  }
+
+  return (
+    <form onSubmit={submit} style={{ alignItems: "flex-end" }}>
+      <div className="field" style={{ flex: 1 }}>
+        <label>Nome</label>
+        <input
+          value={f.name}
+          onChange={(e) => setF({ ...f, name: e.target.value })}
+        />
+      </div>
+      <div className="field" style={{ flex: 2 }}>
+        <label>URL</label>
+        <input
+          style={{ width: "100%" }}
+          value={f.url}
+          onChange={(e) => setF({ ...f, url: e.target.value })}
+        />
+      </div>
+      <div className="field">
+        <label>Método</label>
+        <select
+          value={f.method}
+          onChange={(e) => setF({ ...f, method: e.target.value })}
+        >
+          {METHODS.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="field">
+        <label>Usuário</label>
+        <input
+          value={f.auth_username}
+          autoComplete="off"
+          onChange={(e) => setF({ ...f, auth_username: e.target.value })}
+        />
+      </div>
+      <div className="field">
+        <label>Senha</label>
+        <input
+          type="password"
+          value={f.auth_password}
+          placeholder="manter atual"
+          autoComplete="new-password"
+          onChange={(e) => setF({ ...f, auth_password: e.target.value })}
+        />
+      </div>
+      <div className="field">
+        <label>Limite (ms)</label>
+        <input
+          type="number"
+          min="1"
+          style={{ minWidth: 100 }}
+          placeholder="média"
+          value={f.latency_threshold_ms}
+          onChange={(e) =>
+            setF({ ...f, latency_threshold_ms: e.target.value })
+          }
+        />
+      </div>
+      <div className="field">
+        <label>SSL</label>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: "0.85rem",
+            height: 38,
+          }}
+        >
+          <input
+            type="checkbox"
+            style={{ minWidth: "auto", width: 16, height: 16 }}
+            checked={f.verify_ssl}
+            onChange={(e) => setF({ ...f, verify_ssl: e.target.checked })}
+          />
+          Verificar
+        </label>
+      </div>
+      <button type="submit">Salvar</button>
+      <button type="button" className="ghost" onClick={onCancel}>
+        Cancelar
+      </button>
+    </form>
   );
 }
