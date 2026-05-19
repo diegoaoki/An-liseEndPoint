@@ -85,18 +85,33 @@ def list_endpoints(db: Session = Depends(get_db)):
     job = scheduler.get_job("run_checks")
     next_run = job.next_run_time if job else None
 
+    # Quantas consultas anteriores entram na média (baseline do farol).
+    avg_window = 20
+
     out: list[schemas.EndpointWithLast] = []
     for ep in endpoints:
-        last = (
+        recent = (
             db.query(models.CheckResult)
             .filter(models.CheckResult.endpoint_id == ep.id)
             .order_by(models.CheckResult.checked_at.desc())
-            .first()
+            .limit(avg_window + 1)
+            .all()
         )
+        last = recent[0] if recent else None
+
+        # Média das consultas ANTERIORES à última (baseline de comparação).
+        baseline = [
+            r.response_time_ms
+            for r in recent[1:]
+            if r.response_time_ms is not None
+        ]
+        avg = round(sum(baseline) / len(baseline), 2) if baseline else None
+
         item = schemas.EndpointWithLast.model_validate(ep)
         item.last_result = (
             schemas.CheckResultOut.model_validate(last) if last else None
         )
+        item.avg_response_time_ms = avg
         # Endpoint pausado não entra na checagem -> sem próxima.
         item.next_check_at = next_run if ep.is_active else None
         out.append(item)

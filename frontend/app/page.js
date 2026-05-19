@@ -39,7 +39,77 @@ function ResultBadge({ result }) {
   );
 }
 
+// Decide a cor do farol comparando a última consulta com a média anterior.
+function farolStatus(ep) {
+  const last = ep.last_result;
+  if (!last) return { color: "gray", texto: "Sem dados" };
+  if (!last.success) return { color: "red", texto: "Falha na última consulta" };
+  const avg = ep.avg_response_time_ms;
+  const lastMs = last.response_time_ms;
+  if (avg == null || lastMs == null) {
+    return { color: "blue", texto: "Sem base de comparação ainda" };
+  }
+  if (lastMs > avg) {
+    return { color: "red", texto: "Mais lento que a média" };
+  }
+  return { color: "green", texto: "Dentro da média" };
+}
+
+function Farol({ ep }) {
+  const { color, texto } = farolStatus(ep);
+  const last = ep.last_result;
+  const avg = ep.avg_response_time_ms;
+  return (
+    <div className="dash-card">
+      <div className="dash-head">
+        <span className={`farol farol-${color}`} title={texto} />
+        <div>
+          <strong>{ep.name}</strong>
+          {ep.has_auth && (
+            <span style={{ marginLeft: 6 }} title="Basic Auth">
+              🔒
+            </span>
+          )}
+          {!ep.is_active && (
+            <span className="badge idle" style={{ marginLeft: 8 }}>
+              pausado
+            </span>
+          )}
+          <div className="muted" style={{ fontSize: "0.74rem" }}>
+            #{ep.id} · {ep.method} {ep.url}
+          </div>
+        </div>
+      </div>
+      <div className="dash-label">
+        <span>
+          Média: <strong>{fmtMs(avg)}</strong>
+        </span>
+        <span>
+          Última: <strong>{fmtMs(last?.response_time_ms)}</strong>
+        </span>
+      </div>
+      <div className="muted" style={{ fontSize: "0.74rem" }}>
+        {texto} · checado {fmtTime(last?.checked_at)}
+      </div>
+    </div>
+  );
+}
+
+function Dashboard({ endpoints, loading }) {
+  if (loading) return <p className="muted">Carregando…</p>;
+  if (endpoints.length === 0)
+    return <p className="muted">Nenhum endpoint cadastrado ainda.</p>;
+  return (
+    <div className="dash-grid">
+      {endpoints.map((ep) => (
+        <Farol key={ep.id} ep={ep} />
+      ))}
+    </div>
+  );
+}
+
 export default function Home() {
+  const [tab, setTab] = useState("painel");
   const [endpoints, setEndpoints] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -158,115 +228,150 @@ export default function Home() {
         Cadastre endpoints; o backend mede o tempo de resposta automaticamente.
       </p>
 
+      <nav className="tabs">
+        <button
+          className={tab === "painel" ? "tab active" : "tab"}
+          onClick={() => setTab("painel")}
+        >
+          Painel
+        </button>
+        <button
+          className={tab === "admin" ? "tab active" : "tab"}
+          onClick={() => setTab("admin")}
+        >
+          Administração
+        </button>
+      </nav>
+
       {error && <div className="error-msg">⚠ {error}</div>}
 
-      <section className="card">
-        <h2>Novo endpoint</h2>
-        <form onSubmit={handleCreate}>
-          <div className="field">
-            <label htmlFor="name">Nome</label>
-            <input
-              id="name"
-              value={form.name}
-              placeholder="API de produtos"
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
-          </div>
-          <div className="field" style={{ flex: 1 }}>
-            <label htmlFor="url">URL</label>
-            <input
-              id="url"
-              style={{ width: "100%" }}
-              value={form.url}
-              placeholder="https://exemplo.com/health"
-              onChange={(e) => setForm({ ...form, url: e.target.value })}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="method">Método</label>
-            <select
-              id="method"
-              value={form.method}
-              onChange={(e) => setForm({ ...form, method: e.target.value })}
-            >
-              {METHODS.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="auth_username">Usuário (opcional)</label>
-            <input
-              id="auth_username"
-              value={form.auth_username}
-              placeholder="se exigir auth"
-              autoComplete="off"
-              onChange={(e) =>
-                setForm({ ...form, auth_username: e.target.value })
-              }
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="auth_password">Senha (opcional)</label>
-            <input
-              id="auth_password"
-              type="password"
-              value={form.auth_password}
-              placeholder="••••••"
-              autoComplete="new-password"
-              onChange={(e) =>
-                setForm({ ...form, auth_password: e.target.value })
-              }
-            />
-          </div>
-          <button type="submit" disabled={submitting}>
-            {submitting ? "Salvando…" : "Adicionar"}
-          </button>
-        </form>
-        <p className="muted" style={{ marginTop: 10, fontSize: "0.78rem" }}>
-          Usuário/senha usam HTTP Basic Auth na requisição ao endpoint
-          monitorado. Deixe em branco se não for necessário.
-        </p>
-      </section>
+      {tab === "painel" && (
+        <section className="card">
+          <h2>Painel — farol dos endpoints</h2>
+          <p className="muted" style={{ fontSize: "0.8rem", marginBottom: 14 }}>
+            🟢 dentro da média · 🔴 mais lento que a média (ou falha) · 🔵 sem
+            base ainda · ⚪ sem dados
+          </p>
+          <Dashboard endpoints={endpoints} loading={loading} />
+        </section>
+      )}
 
-      <section className="card">
-        <h2>Endpoints monitorados</h2>
-        {loading ? (
-          <p className="muted">Carregando…</p>
-        ) : endpoints.length === 0 ? (
-          <p className="muted">Nenhum endpoint cadastrado ainda.</p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Nome / URL</th>
-                <th>Último status</th>
-                <th>Tempo</th>
-                <th>Checado em</th>
-                <th>Próxima consulta</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {endpoints.map((ep) => (
-                <FragmentRow
-                  key={ep.id}
-                  ep={ep}
-                  expanded={expanded === ep.id}
-                  history={history[ep.id]}
-                  onToggleExpand={() => toggleExpand(ep.id)}
-                  onCheckNow={() => handleCheckNow(ep.id)}
-                  onToggleActive={() => handleToggle(ep)}
-                  onDelete={() => handleDelete(ep.id)}
+      {tab === "admin" && (
+        <>
+          <section className="card">
+            <h2>Novo endpoint</h2>
+            <form onSubmit={handleCreate}>
+              <div className="field">
+                <label htmlFor="name">Nome</label>
+                <input
+                  id="name"
+                  value={form.name}
+                  placeholder="API de produtos"
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
                 />
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+              </div>
+              <div className="field" style={{ flex: 1 }}>
+                <label htmlFor="url">URL</label>
+                <input
+                  id="url"
+                  style={{ width: "100%" }}
+                  value={form.url}
+                  placeholder="https://exemplo.com/health"
+                  onChange={(e) => setForm({ ...form, url: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="method">Método</label>
+                <select
+                  id="method"
+                  value={form.method}
+                  onChange={(e) =>
+                    setForm({ ...form, method: e.target.value })
+                  }
+                >
+                  {METHODS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="auth_username">Usuário (opcional)</label>
+                <input
+                  id="auth_username"
+                  value={form.auth_username}
+                  placeholder="se exigir auth"
+                  autoComplete="off"
+                  onChange={(e) =>
+                    setForm({ ...form, auth_username: e.target.value })
+                  }
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="auth_password">Senha (opcional)</label>
+                <input
+                  id="auth_password"
+                  type="password"
+                  value={form.auth_password}
+                  placeholder="••••••"
+                  autoComplete="new-password"
+                  onChange={(e) =>
+                    setForm({ ...form, auth_password: e.target.value })
+                  }
+                />
+              </div>
+              <button type="submit" disabled={submitting}>
+                {submitting ? "Salvando…" : "Adicionar"}
+              </button>
+            </form>
+            <p
+              className="muted"
+              style={{ marginTop: 10, fontSize: "0.78rem" }}
+            >
+              Usuário/senha usam HTTP Basic Auth na requisição ao endpoint
+              monitorado. Deixe em branco se não for necessário.
+            </p>
+          </section>
+
+          <section className="card">
+            <h2>Endpoints monitorados</h2>
+            {loading ? (
+              <p className="muted">Carregando…</p>
+            ) : endpoints.length === 0 ? (
+              <p className="muted">Nenhum endpoint cadastrado ainda.</p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Nome / URL</th>
+                    <th>Último status</th>
+                    <th>Tempo</th>
+                    <th>Checado em</th>
+                    <th>Próxima consulta</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {endpoints.map((ep) => (
+                    <FragmentRow
+                      key={ep.id}
+                      ep={ep}
+                      expanded={expanded === ep.id}
+                      history={history[ep.id]}
+                      onToggleExpand={() => toggleExpand(ep.id)}
+                      onCheckNow={() => handleCheckNow(ep.id)}
+                      onToggleActive={() => handleToggle(ep)}
+                      onDelete={() => handleDelete(ep.id)}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+        </>
+      )}
     </main>
   );
 }

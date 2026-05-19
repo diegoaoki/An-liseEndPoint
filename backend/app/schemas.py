@@ -50,3 +50,5 @@ class CheckResultOut(BaseModel):
 class EndpointWithLast(EndpointOut):
     last_result: CheckResultOut | None = None
     next_check_at: datetime | None = None
+    # Média das consultas anteriores à última (baseline do farol).
+    avg_response_time_ms: float | None = None
