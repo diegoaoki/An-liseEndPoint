@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from . import models, schemas
 from .database import Base, SessionLocal, engine, get_db
+from .external import fetch_rpe_status
 from .monitor import check_single, run_checks
 
 DEFAULT_INTERVAL_MINUTES = int(os.getenv("CHECK_INTERVAL_MINUTES", "5"))
@@ -131,6 +132,18 @@ async def check_all():
     """Dispara uma checagem imediata de todos os endpoints ativos."""
     await run_checks()
     return {"status": "ok"}
+
+
+@app.get("/external/rpe-status")
+async def rpe_status():
+    """Status público dos componentes da RPE (via RSS do StatusIQ)."""
+    try:
+        return await fetch_rpe_status()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502,
+            detail=f"Falha ao ler status.rpe.tech: {exc}",
+        )
 
 
 # ---------- Endpoints (CRUD) ----------

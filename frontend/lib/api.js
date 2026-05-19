@@ -41,4 +41,5 @@ export const api = {
   getSettings: () => request(`/settings`),
   updateSettings: (data) =>
     request(`/settings`, { method: "PUT", body: JSON.stringify(data) }),
+  rpeStatus: () => request(`/external/rpe-status`),
 };

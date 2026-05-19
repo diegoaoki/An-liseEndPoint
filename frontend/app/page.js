@@ -120,6 +120,51 @@ function Dashboard({ endpoints, loading }) {
   );
 }
 
+// Status RPE (lido do RSS do StatusIQ): verde = Operacional, senão alerta.
+function rpeColor(status) {
+  const s = (status || "").toLowerCase();
+  if (s.includes("operacional")) return "green";
+  if (s.includes("manuten")) return "blue";
+  if (s.includes("degrad") || s.includes("parcial")) return "yellow";
+  if (!s) return "gray";
+  return "red";
+}
+
+function RpeStatus({ data, error }) {
+  if (error) return <div className="error-msg">⚠ {error}</div>;
+  if (!data) return <p className="muted">Carregando…</p>;
+  if (!data.items?.length)
+    return <p className="muted">Nenhum componente retornado pelo feed.</p>;
+  return (
+    <div className="dash-grid">
+      {data.items.map((it, i) => {
+        const color = rpeColor(it.status);
+        const down = color === "red";
+        return (
+          <div
+            key={`${it.component}-${i}`}
+            className={down ? "dash-card dash-card-down" : "dash-card"}
+          >
+            {down && <div className="down-banner">⚠ {it.status}</div>}
+            <div className="dash-head">
+              <span className={`farol farol-${color}`} title={it.status} />
+              <div>
+                <strong>{it.component}</strong>
+                <div className="muted" style={{ fontSize: "0.74rem" }}>
+                  {it.status || "—"}
+                </div>
+              </div>
+            </div>
+            <div className="muted" style={{ fontSize: "0.74rem" }}>
+              atualizado: {it.updated_at || "—"}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Home() {
   const [tab, setTab] = useState("painel");
   const [endpoints, setEndpoints] = useState([]);
@@ -138,6 +183,8 @@ export default function Home() {
   const [refreshing, setRefreshing] = useState(false);
   const [intervalInput, setIntervalInput] = useState("");
   const [savingInterval, setSavingInterval] = useState(false);
+  const [rpe, setRpe] = useState(null);
+  const [rpeError, setRpeError] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -160,13 +207,27 @@ export default function Home() {
     }
   }, []);
 
+  const loadRpe = useCallback(async () => {
+    try {
+      const d = await api.rpeStatus();
+      setRpe(d);
+      setRpeError(null);
+    } catch (e) {
+      setRpeError(e.message);
+    }
+  }, []);
+
   useEffect(() => {
     load();
     loadSettings();
+    loadRpe();
     // Tela principal se atualiza sozinha a cada 10s.
-    const t = setInterval(load, 10000);
+    const t = setInterval(() => {
+      load();
+      loadRpe();
+    }, 10000);
     return () => clearInterval(t);
-  }, [load, loadSettings]);
+  }, [load, loadSettings, loadRpe]);
 
   async function handleRefreshAll() {
     setRefreshing(true);
@@ -294,6 +355,12 @@ export default function Home() {
           Painel
         </button>
         <button
+          className={tab === "rpe" ? "tab active" : "tab"}
+          onClick={() => setTab("rpe")}
+        >
+          Status RPE
+        </button>
+        <button
           className={tab === "admin" ? "tab active" : "tab"}
           onClick={() => setTab("admin")}
         >
@@ -316,6 +383,21 @@ export default function Home() {
             · 🔵 sem base ainda · ⚪ sem dados — atualiza sozinho a cada 10s
           </p>
           <Dashboard endpoints={endpoints} loading={loading} />
+        </section>
+      )}
+
+      {tab === "rpe" && (
+        <section className="card">
+          <div className="card-head">
+            <h2>Status RPE</h2>
+            <button onClick={loadRpe}>↻ Atualizar</button>
+          </div>
+          <p className="muted" style={{ fontSize: "0.8rem", marginBottom: 14 }}>
+            Componentes lidos do feed público de status.rpe.tech (StatusIQ).
+            🟢 operacional · 🟡 degradado · 🔵 manutenção · 🔴 indisponível —
+            atualiza sozinho a cada 10s (cache de 60s no servidor)
+          </p>
+          <RpeStatus data={rpe} error={rpeError} />
         </section>
       )}
 
