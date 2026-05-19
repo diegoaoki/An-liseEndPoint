@@ -58,6 +58,12 @@ def health():
 @app.get("/endpoints", response_model=list[schemas.EndpointWithLast])
 def list_endpoints(db: Session = Depends(get_db)):
     endpoints = db.query(models.Endpoint).order_by(models.Endpoint.id).all()
+
+    # Próxima execução do job recorrente (mesma para todos os ativos,
+    # pois a checagem é um único job em intervalo).
+    job = scheduler.get_job("run_checks")
+    next_run = job.next_run_time if job else None
+
     out: list[schemas.EndpointWithLast] = []
     for ep in endpoints:
         last = (
@@ -70,6 +76,8 @@ def list_endpoints(db: Session = Depends(get_db)):
         item.last_result = (
             schemas.CheckResultOut.model_validate(last) if last else None
         )
+        # Endpoint pausado não entra na checagem -> sem próxima.
+        item.next_check_at = next_run if ep.is_active else None
         out.append(item)
     return out
 

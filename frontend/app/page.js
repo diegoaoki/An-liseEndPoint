@@ -15,6 +15,18 @@ function fmtMs(ms) {
   return `${ms.toFixed(0)} ms`;
 }
 
+function fmtNext(iso, isActive) {
+  if (!isActive) return "—";
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const diffS = Math.round((d.getTime() - Date.now()) / 1000);
+  let rel;
+  if (diffS <= 0) rel = "agora";
+  else if (diffS < 60) rel = `em ${diffS}s`;
+  else rel = `em ${Math.round(diffS / 60)} min`;
+  return `${d.toLocaleTimeString("pt-BR")} (${rel})`;
+}
+
 function ResultBadge({ result }) {
   if (!result) return <span className="badge idle">sem dados</span>;
   if (result.success) {
@@ -183,6 +195,7 @@ export default function Home() {
                 <th>Último status</th>
                 <th>Tempo</th>
                 <th>Checado em</th>
+                <th>Próxima consulta</th>
                 <th>Ações</th>
               </tr>
             </thead>
@@ -238,6 +251,7 @@ function FragmentRow({
         </td>
         <td>{fmtMs(last?.response_time_ms)}</td>
         <td className="muted">{fmtTime(last?.checked_at)}</td>
+        <td className="muted">{fmtNext(ep.next_check_at, ep.is_active)}</td>
         <td>
           <div className="row-actions">
             <button className="ghost" onClick={onToggleExpand}>
@@ -257,7 +271,7 @@ function FragmentRow({
       </tr>
       {expanded && (
         <tr className="history-row">
-          <td colSpan={6}>
+          <td colSpan={7}>
             {!history ? (
               <span className="muted">Carregando histórico…</span>
             ) : history.length === 0 ? (

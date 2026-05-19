@@ -42,3 +42,4 @@ class CheckResultOut(BaseModel):
 
 class EndpointWithLast(EndpointOut):
     last_result: CheckResultOut | None = None
+    next_check_at: datetime | None = None
