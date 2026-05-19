@@ -45,6 +45,7 @@ export const api = {
     request(`/settings`, { method: "PUT", body: JSON.stringify(data) }),
   rpeStatus: () => request(`/external/rpe-status`),
   linxStatus: () => request(`/external/linx-status`),
+  invoicyStatus: () => request(`/external/invoicy-status`),
   logs: (limit = 100, onlyFailures = false) =>
     request(
       `/results?limit=${limit}${onlyFailures ? "&only_failures=true" : ""}`

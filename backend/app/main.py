@@ -9,7 +9,11 @@ from sqlalchemy.orm import Session
 
 from . import models, schemas
 from .database import Base, SessionLocal, engine, get_db
-from .external import fetch_linx_status, fetch_rpe_status
+from .external import (
+    fetch_invoicy_status,
+    fetch_linx_status,
+    fetch_rpe_status,
+)
 from .monitor import (
     check_single,
     invalidate_token,
@@ -166,6 +170,18 @@ async def linx_status():
         raise HTTPException(
             status_code=502,
             detail=f"Falha ao ler statusqr.linx.com.br: {exc}",
+        )
+
+
+@app.get("/external/invoicy-status")
+async def invoicy_status():
+    """Status público dos componentes Invoicy Brasil (status.invoicy.com.br)."""
+    try:
+        return await fetch_invoicy_status()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502,
+            detail=f"Falha ao ler status.invoicy.com.br: {exc}",
         )
 
 

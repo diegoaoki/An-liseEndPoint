@@ -352,7 +352,14 @@ function firstAffectedItems(items, prefix) {
   return red;
 }
 
-function StatusChip({ label, problems, warnings, targetId, onNavigate }) {
+function StatusChip({
+  label,
+  problems,
+  warnings,
+  targetId,
+  targetTab,
+  onNavigate,
+}) {
   const level = levelFromLists(problems, warnings);
   const text =
     level === "green"
@@ -368,7 +375,9 @@ function StatusChip({ label, problems, warnings, targetId, onNavigate }) {
     <div
       className={`status-chip sc-${level}${clickable ? " clickable" : ""}`}
       title={title}
-      onClick={clickable ? () => onNavigate(targetId) : undefined}
+      onClick={
+        clickable ? () => onNavigate(targetId, targetTab) : undefined
+      }
       role={clickable ? "button" : undefined}
     >
       <span className={`farol farol-${level}`} />
@@ -380,10 +389,11 @@ function StatusChip({ label, problems, warnings, targetId, onNavigate }) {
   );
 }
 
-function GlobalBanner({ endpoints, rpe, linx, onNavigate }) {
+function GlobalBanner({ endpoints, rpe, linx, invoicy, onNavigate }) {
   const a = collectEndpoints(endpoints);
   const l = collectItems(linx?.items);
   const r = collectItems(rpe?.items);
+  const i = collectItems(invoicy?.items);
   return (
     <div className="status-row">
       <StatusChip
@@ -391,6 +401,7 @@ function GlobalBanner({ endpoints, rpe, linx, onNavigate }) {
         problems={a.p}
         warnings={a.w}
         targetId={firstAffectedApi(endpoints)}
+        targetTab="painel"
         onNavigate={onNavigate}
       />
       <StatusChip
@@ -398,6 +409,7 @@ function GlobalBanner({ endpoints, rpe, linx, onNavigate }) {
         problems={l.p}
         warnings={l.w}
         targetId={firstAffectedItems(linxBoardItems(linx), "linx")}
+        targetTab="painel"
         onNavigate={onNavigate}
       />
       <StatusChip
@@ -405,6 +417,15 @@ function GlobalBanner({ endpoints, rpe, linx, onNavigate }) {
         problems={r.p}
         warnings={r.w}
         targetId={firstAffectedItems(rpeBoardItems(rpe), "rpe")}
+        targetTab="painel"
+        onNavigate={onNavigate}
+      />
+      <StatusChip
+        label="Invoicy"
+        problems={i.p}
+        warnings={i.w}
+        targetId={firstAffectedItems(invoicy?.items || [], "invoicy")}
+        targetTab="invoicy"
         onNavigate={onNavigate}
       />
     </div>
@@ -416,7 +437,7 @@ function statusColor(status) {
   const s = (status || "").toLowerCase();
   if (s.includes("operacional")) return "green";
   if (s.includes("inativo")) return "gray";
-  if (s.includes("manuten")) return "blue";
+  if (s.includes("manuten") || s.includes("informativo")) return "blue";
   if (s.includes("alerta") || s.includes("degrad") || s.includes("parcial"))
     return "yellow";
   if (!s) return "gray";
@@ -489,6 +510,8 @@ export default function Home() {
   const [rpeError, setRpeError] = useState(null);
   const [linx, setLinx] = useState(null);
   const [linxError, setLinxError] = useState(null);
+  const [invoicy, setInvoicy] = useState(null);
+  const [invoicyError, setInvoicyError] = useState(null);
   const [logs, setLogs] = useState([]);
   const [logsOnlyFailures, setLogsOnlyFailures] = useState(false);
 
@@ -533,6 +556,16 @@ export default function Home() {
     }
   }, []);
 
+  const loadInvoicy = useCallback(async () => {
+    try {
+      const d = await api.invoicyStatus();
+      setInvoicy(d);
+      setInvoicyError(null);
+    } catch (e) {
+      setInvoicyError(e.message);
+    }
+  }, []);
+
   const loadLogs = useCallback(async () => {
     try {
       const d = await api.logs(150, logsOnlyFailures);
@@ -547,20 +580,22 @@ export default function Home() {
     loadSettings();
     loadRpe();
     loadLinx();
+    loadInvoicy();
     loadLogs();
     // Tela principal se atualiza sozinha a cada 10s.
     const t = setInterval(() => {
       load();
       loadRpe();
       loadLinx();
+      loadInvoicy();
       loadLogs();
     }, 10000);
     return () => clearInterval(t);
-  }, [load, loadSettings, loadRpe, loadLinx, loadLogs]);
+  }, [load, loadSettings, loadRpe, loadLinx, loadInvoicy, loadLogs]);
 
-  function goToCard(id) {
-    setTab("painel");
-    // Espera o Painel renderizar antes de rolar até o card.
+  function goToCard(id, targetTab = "painel") {
+    setTab(targetTab);
+    // Espera a aba renderizar antes de rolar até o card.
     setTimeout(() => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -741,6 +776,7 @@ export default function Home() {
         endpoints={endpoints}
         rpe={rpe}
         linx={linx}
+        invoicy={invoicy}
         onNavigate={goToCard}
       />
       <h1>Endpoint Monitor</h1>
@@ -766,6 +802,12 @@ export default function Home() {
           onClick={() => setTab("linx")}
         >
           Status Linx
+        </button>
+        <button
+          className={tab === "invoicy" ? "tab active" : "tab"}
+          onClick={() => setTab("invoicy")}
+        >
+          Status Invoicy
         </button>
         <button
           className={tab === "log" ? "tab active" : "tab"}
@@ -846,6 +888,22 @@ export default function Home() {
             10s (cache de 60s no servidor)
           </p>
           <StatusGrid data={linx} error={linxError} />
+        </section>
+      )}
+
+      {tab === "invoicy" && (
+        <section className="card">
+          <div className="card-head">
+            <h2>Status Invoicy (Brasil)</h2>
+            <button onClick={loadInvoicy}>↻ Atualizar</button>
+          </div>
+          <p className="muted" style={{ fontSize: "0.8rem", marginBottom: 14 }}>
+            Componentes do grupo <em>Invoicy Brasil</em> de
+            status.invoicy.com.br. 🟢 operacional · 🟡 degradado · 🔵 manutenção
+            ou informativo · 🔴 indisponível — atualiza sozinho a cada 10s
+            (cache 60s no servidor)
+          </p>
+          <StatusGrid data={invoicy} error={invoicyError} idPrefix="invoicy" />
         </section>
       )}
 

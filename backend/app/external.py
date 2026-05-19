@@ -24,6 +24,26 @@ LINX_HEADERS = {
 
 _cache: dict = {"at": 0.0, "data": None}
 _linx_cache: dict = {"at": 0.0, "data": None}
+_invoicy_cache: dict = {"at": 0.0, "data": None}
+
+# Invoicy também é StatusIQ; o RSS está desativado, então usamos o
+# mesmo endpoint público que o frontend Angular do StatusIQ consome.
+INVOICY_BASE = "https://migrate.site24x7statusiq.com"
+INVOICY_ENC = "qKvuIOePXvtI4qyqapqOIxRcyjyiconjqR9XrH4QRgo="
+INVOICY_SUMMARY_URL = (
+    f"{INVOICY_BASE}/sp/api/public/summary_details/statuspages/{INVOICY_ENC}"
+)
+INVOICY_GROUP_FILTER = "brasil"  # mostra só componentes do grupo Invoicy Brasil
+
+# Mapa de status numérico do StatusIQ -> texto.
+STATUSIQ_STATUS = {
+    1: "Operacional",
+    2: "Informativo",
+    3: "Degradação de performance",
+    4: "Em manutenção",
+    5: "Interrupção parcial",
+    6: "Interrupção total",
+}
 
 
 async def fetch_rpe_status() -> dict:
@@ -97,4 +117,45 @@ async def fetch_linx_status() -> dict:
     data = {"source": "https://statusqr.linx.com.br", "items": items}
     _linx_cache["at"] = now
     _linx_cache["data"] = data
+    return data
+
+
+async def fetch_invoicy_status() -> dict:
+    """Consome o endpoint público do StatusIQ da Invoicy (filtra grupo Brasil)."""
+    now = time.time()
+    if (
+        _invoicy_cache["data"] is not None
+        and (now - _invoicy_cache["at"]) < CACHE_TTL
+    ):
+        return _invoicy_cache["data"]
+
+    headers = {"Accept": "application/json; version=2.0"}
+    async with httpx.AsyncClient(headers=headers) as client:
+        resp = await client.get(INVOICY_SUMMARY_URL, timeout=20.0)
+        resp.raise_for_status()
+
+    payload = resp.json().get("data") or {}
+    groups = payload.get("current_status") or []
+
+    items: list[dict] = []
+    for group in groups:
+        gname = group.get("componentgroup_display_name", "") or ""
+        if INVOICY_GROUP_FILTER not in gname.lower():
+            continue
+        for c in group.get("componentgroup_components") or []:
+            status = STATUSIQ_STATUS.get(
+                c.get("component_status"), "Desconhecido"
+            )
+            items.append(
+                {
+                    "component": c.get("display_name", "—"),
+                    "system": gname,
+                    "status": status,
+                    "updated_at": c.get("last_polled_time", "") or "",
+                }
+            )
+
+    data = {"source": "https://status.invoicy.com.br/", "items": items}
+    _invoicy_cache["at"] = now
+    _invoicy_cache["data"] = data
     return data
