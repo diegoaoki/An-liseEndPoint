@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from . import models, schemas
 from .database import Base, SessionLocal, engine, get_db
-from .external import fetch_rpe_status
+from .external import fetch_linx_status, fetch_rpe_status
 from .monitor import check_single, run_checks
 
 DEFAULT_INTERVAL_MINUTES = int(os.getenv("CHECK_INTERVAL_MINUTES", "5"))
@@ -143,6 +143,18 @@ async def rpe_status():
         raise HTTPException(
             status_code=502,
             detail=f"Falha ao ler status.rpe.tech: {exc}",
+        )
+
+
+@app.get("/external/linx-status")
+async def linx_status():
+    """Status público dos PSPs da QrLinx (statusqr.linx.com.br)."""
+    try:
+        return await fetch_linx_status()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502,
+            detail=f"Falha ao ler statusqr.linx.com.br: {exc}",
         )
 
 

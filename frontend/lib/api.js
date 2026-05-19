@@ -42,4 +42,5 @@ export const api = {
   updateSettings: (data) =>
     request(`/settings`, { method: "PUT", body: JSON.stringify(data) }),
   rpeStatus: () => request(`/external/rpe-status`),
+  linxStatus: () => request(`/external/linx-status`),
 };

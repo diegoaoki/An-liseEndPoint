@@ -120,25 +120,27 @@ function Dashboard({ endpoints, loading }) {
   );
 }
 
-// Status RPE (lido do RSS do StatusIQ): verde = Operacional, senão alerta.
-function rpeColor(status) {
+// Mapeia o texto de status (RPE/Linx) numa cor de farol.
+function statusColor(status) {
   const s = (status || "").toLowerCase();
   if (s.includes("operacional")) return "green";
+  if (s.includes("inativo")) return "gray";
   if (s.includes("manuten")) return "blue";
-  if (s.includes("degrad") || s.includes("parcial")) return "yellow";
+  if (s.includes("alerta") || s.includes("degrad") || s.includes("parcial"))
+    return "yellow";
   if (!s) return "gray";
   return "red";
 }
 
-function RpeStatus({ data, error }) {
+function StatusGrid({ data, error }) {
   if (error) return <div className="error-msg">⚠ {error}</div>;
   if (!data) return <p className="muted">Carregando…</p>;
   if (!data.items?.length)
-    return <p className="muted">Nenhum componente retornado pelo feed.</p>;
+    return <p className="muted">Nenhum componente retornado.</p>;
   return (
     <div className="dash-grid">
       {data.items.map((it, i) => {
-        const color = rpeColor(it.status);
+        const color = statusColor(it.status);
         const down = color === "red";
         return (
           <div
@@ -152,11 +154,12 @@ function RpeStatus({ data, error }) {
                 <strong>{it.component}</strong>
                 <div className="muted" style={{ fontSize: "0.74rem" }}>
                   {it.status || "—"}
+                  {it.system ? ` · ${it.system}` : ""}
                 </div>
               </div>
             </div>
             <div className="muted" style={{ fontSize: "0.74rem" }}>
-              atualizado: {it.updated_at || "—"}
+              {it.updated_at ? `atualizado: ${it.updated_at}` : " "}
             </div>
           </div>
         );
@@ -185,6 +188,8 @@ export default function Home() {
   const [savingInterval, setSavingInterval] = useState(false);
   const [rpe, setRpe] = useState(null);
   const [rpeError, setRpeError] = useState(null);
+  const [linx, setLinx] = useState(null);
+  const [linxError, setLinxError] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -217,17 +222,29 @@ export default function Home() {
     }
   }, []);
 
+  const loadLinx = useCallback(async () => {
+    try {
+      const d = await api.linxStatus();
+      setLinx(d);
+      setLinxError(null);
+    } catch (e) {
+      setLinxError(e.message);
+    }
+  }, []);
+
   useEffect(() => {
     load();
     loadSettings();
     loadRpe();
+    loadLinx();
     // Tela principal se atualiza sozinha a cada 10s.
     const t = setInterval(() => {
       load();
       loadRpe();
+      loadLinx();
     }, 10000);
     return () => clearInterval(t);
-  }, [load, loadSettings, loadRpe]);
+  }, [load, loadSettings, loadRpe, loadLinx]);
 
   async function handleRefreshAll() {
     setRefreshing(true);
@@ -361,6 +378,12 @@ export default function Home() {
           Status RPE
         </button>
         <button
+          className={tab === "linx" ? "tab active" : "tab"}
+          onClick={() => setTab("linx")}
+        >
+          Status Linx
+        </button>
+        <button
           className={tab === "admin" ? "tab active" : "tab"}
           onClick={() => setTab("admin")}
         >
@@ -397,7 +420,22 @@ export default function Home() {
             🟢 operacional · 🟡 degradado · 🔵 manutenção · 🔴 indisponível —
             atualiza sozinho a cada 10s (cache de 60s no servidor)
           </p>
-          <RpeStatus data={rpe} error={rpeError} />
+          <StatusGrid data={rpe} error={rpeError} />
+        </section>
+      )}
+
+      {tab === "linx" && (
+        <section className="card">
+          <div className="card-head">
+            <h2>Status Linx (QrLinx)</h2>
+            <button onClick={loadLinx}>↻ Atualizar</button>
+          </div>
+          <p className="muted" style={{ fontSize: "0.8rem", marginBottom: 14 }}>
+            PSPs lidos da API pública de statusqr.linx.com.br. 🟢 operacional ·
+            🟡 alerta · ⚪ inativo · 🔴 indisponível — atualiza sozinho a cada
+            10s (cache de 60s no servidor)
+          </p>
+          <StatusGrid data={linx} error={linxError} />
         </section>
       )}
 
