@@ -622,7 +622,7 @@ const PDV_STAGES = [
   },
   {
     key: "pagamento",
-    title: "Pagamento",
+    title: "RPE",
     subtitle: "Horizon",
     icon: "💳",
     color: "coral",
