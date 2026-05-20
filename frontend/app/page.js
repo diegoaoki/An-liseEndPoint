@@ -41,9 +41,10 @@ function ResultBadge({ result }) {
 
 // Margens sobre a média (absorve o jitter normal de rede):
 const GREEN_THRESHOLD = 1.2; // até +20% ainda é verde
-const RED_THRESHOLD = 1.5; // acima de +50% é vermelho (entre os dois = amarelo)
+const SLOW_THRESHOLD = 1.5; // acima de +50% = "muito lento" (ainda amarelo)
 
 // Decide a cor do farol comparando a última consulta com a média anterior.
+// Regra: vermelho APENAS se a API estiver fora; qualquer lentidão é amarelo.
 function farolStatus(ep) {
   const last = ep.last_result;
   if (!last) return { color: "gray", texto: "Sem dados" };
@@ -67,12 +68,11 @@ function farolStatus(ep) {
   if (lastMs <= avg * GREEN_THRESHOLD) {
     return { color: "green", texto: "Dentro da média" };
   }
-  if (lastMs <= avg * RED_THRESHOLD) {
-    const pct = Math.round((lastMs / avg - 1) * 100);
+  const pct = Math.round((lastMs / avg - 1) * 100);
+  if (lastMs <= avg * SLOW_THRESHOLD) {
     return { color: "yellow", texto: `Levemente lento (+${pct}%)` };
   }
-  const pct = Math.round((lastMs / avg - 1) * 100);
-  return { color: "red", texto: `Muito lento (+${pct}% da média)` };
+  return { color: "yellow", texto: `Muito lento (+${pct}% da média)` };
 }
 
 function Farol({ ep, domId }) {
@@ -990,8 +990,8 @@ export default function Home() {
             </button>
           </div>
           <p className="muted" style={{ fontSize: "0.8rem", marginBottom: 14 }}>
-            🟢 até +20% da média · 🟡 +20% a +50% · 🔴 acima de +50% (ou falha)
-            · 🔵 sem base ainda · ⚪ sem dados — atualiza sozinho a cada 10s
+            🟢 até +20% da média · 🟡 lento (+20% ou mais) · 🔴 fora do ar ·
+            🔵 sem base ainda · ⚪ sem dados — atualiza sozinho a cada 10s
           </p>
           <Dashboard endpoints={activeEndpoints} loading={loading} />
 
