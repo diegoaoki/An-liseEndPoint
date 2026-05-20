@@ -47,6 +47,7 @@ export const api = {
   linxStatus: () => request(`/external/linx-status`),
   invoicyStatus: () => request(`/external/invoicy-status`),
   sefazStatus: () => request(`/external/sefaz-status`),
+  tecnospeedStatus: () => request(`/external/tecnospeed-status`),
   logs: (limit = 100, onlyFailures = false) =>
     request(
       `/results?limit=${limit}${onlyFailures ? "&only_failures=true" : ""}`

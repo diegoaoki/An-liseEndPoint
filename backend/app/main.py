@@ -14,6 +14,7 @@ from .external import (
     fetch_linx_status,
     fetch_rpe_status,
     fetch_sefaz_status,
+    fetch_tecnospeed_status,
 )
 from .monitor import (
     check_single,
@@ -195,6 +196,18 @@ async def sefaz_status():
         raise HTTPException(
             status_code=502,
             detail=f"Falha ao ler nfe.fazenda.gov.br: {exc}",
+        )
+
+
+@app.get("/external/tecnospeed-status")
+async def tecnospeed_status():
+    """Status NFe/CTe/NFCe por UF do dashboard TecnoSpeed."""
+    try:
+        return await fetch_tecnospeed_status()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502,
+            detail=f"Falha ao ler monitor.tecnospeed.com.br: {exc}",
         )
 
 

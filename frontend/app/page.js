@@ -310,6 +310,15 @@ function sefazBoardItems(sefaz) {
   });
 }
 
+// TecnoSpeed no painel: so aparece UF/doc amarelo ou vermelho.
+function tecnoBoardItems(tecno) {
+  const items = tecno?.items || [];
+  return items.filter((i) => {
+    const c = statusColor(i.status);
+    return c === "yellow" || c === "red";
+  });
+}
+
 function levelFromLists(problems, warnings) {
   if (problems.length) return "red";
   if (warnings.length) return "yellow";
@@ -398,12 +407,21 @@ function StatusChip({
   );
 }
 
-function GlobalBanner({ endpoints, rpe, linx, invoicy, sefaz, onNavigate }) {
+function GlobalBanner({
+  endpoints,
+  rpe,
+  linx,
+  invoicy,
+  sefaz,
+  tecno,
+  onNavigate,
+}) {
   const a = collectEndpoints(endpoints);
   const l = collectItems(linx?.items);
   const r = collectItems(rpe?.items);
   const i = collectItems(invoicy?.items);
   const s = collectItems(sefaz?.items);
+  const t = collectItems(tecno?.items);
   return (
     <div className="status-row">
       <StatusChip
@@ -446,17 +464,35 @@ function GlobalBanner({ endpoints, rpe, linx, invoicy, sefaz, onNavigate }) {
         targetTab="sefaz"
         onNavigate={onNavigate}
       />
+      <StatusChip
+        label="TecnoSpeed"
+        problems={t.p}
+        warnings={t.w}
+        targetId={firstAffectedItems(tecno?.items || [], "tecno")}
+        targetTab="tecno"
+        onNavigate={onNavigate}
+      />
     </div>
   );
 }
 
-// Mapeia o texto de status (RPE/Linx/SEFAZ) numa cor de farol.
+// Mapeia o texto de status (RPE/Linx/SEFAZ/TecnoSpeed) numa cor de farol.
 function statusColor(status) {
   const s = (status || "").toLowerCase();
-  if (s.includes("operacional")) return "green";
-  if (s.includes("inativo") || s.includes("sem dados")) return "gray";
+  if (s.includes("operacional") || s.includes("normal")) return "green";
+  if (
+    s.includes("inativo") ||
+    s.includes("sem dados") ||
+    s.includes("timeout")
+  )
+    return "gray";
   if (s.includes("manuten") || s.includes("informativo")) return "blue";
-  if (s.includes("alerta") || s.includes("degrad") || s.includes("parcial"))
+  if (
+    s.includes("alerta") ||
+    s.includes("degrad") ||
+    s.includes("parcial") ||
+    s.includes("lento")
+  )
     return "yellow";
   if (!s) return "gray";
   return "red";
@@ -580,6 +616,8 @@ export default function Home() {
   const [invoicyError, setInvoicyError] = useState(null);
   const [sefaz, setSefaz] = useState(null);
   const [sefazError, setSefazError] = useState(null);
+  const [tecno, setTecno] = useState(null);
+  const [tecnoError, setTecnoError] = useState(null);
   const [logs, setLogs] = useState([]);
   const [logsOnlyFailures, setLogsOnlyFailures] = useState(false);
 
@@ -644,6 +682,16 @@ export default function Home() {
     }
   }, []);
 
+  const loadTecno = useCallback(async () => {
+    try {
+      const d = await api.tecnospeedStatus();
+      setTecno(d);
+      setTecnoError(null);
+    } catch (e) {
+      setTecnoError(e.message);
+    }
+  }, []);
+
   const loadLogs = useCallback(async () => {
     try {
       const d = await api.logs(150, logsOnlyFailures);
@@ -660,6 +708,7 @@ export default function Home() {
     loadLinx();
     loadInvoicy();
     loadSefaz();
+    loadTecno();
     loadLogs();
     // Tela principal se atualiza sozinha a cada 10s.
     const t = setInterval(() => {
@@ -668,6 +717,7 @@ export default function Home() {
       loadLinx();
       loadInvoicy();
       loadSefaz();
+      loadTecno();
       loadLogs();
     }, 10000);
     return () => clearInterval(t);
@@ -678,6 +728,7 @@ export default function Home() {
     loadLinx,
     loadInvoicy,
     loadSefaz,
+    loadTecno,
     loadLogs,
   ]);
 
@@ -869,6 +920,7 @@ export default function Home() {
         linx={linx}
         invoicy={invoicy}
         sefaz={sefaz}
+        tecno={tecno}
         onNavigate={goToCard}
       />
       <h1>Endpoint Monitor</h1>
@@ -906,6 +958,12 @@ export default function Home() {
           onClick={() => setTab("sefaz")}
         >
           Status SEFAZ
+        </button>
+        <button
+          className={tab === "tecno" ? "tab active" : "tab"}
+          onClick={() => setTab("tecno")}
+        >
+          Status TecnoSpeed
         </button>
         <button
           className={tab === "log" ? "tab active" : "tab"}
@@ -982,6 +1040,32 @@ export default function Home() {
             }
             return null;
           })()}
+
+          {(() => {
+            const tecnoAlerts = tecnoBoardItems(tecno);
+            if (tecnoError || tecnoAlerts.length > 0) {
+              return (
+                <>
+                  <h2 style={{ marginTop: 28, marginBottom: 12 }}>
+                    Board TecnoSpeed
+                  </h2>
+                  <p
+                    className="muted"
+                    style={{ fontSize: "0.78rem", marginBottom: 12 }}
+                  >
+                    UFs/documentos com lentidão ou erro (só aparece quando há
+                    problema).
+                  </p>
+                  <StatusGrid
+                    data={{ items: tecnoAlerts }}
+                    error={tecnoError}
+                    idPrefix="tecno-board"
+                  />
+                </>
+              );
+            }
+            return null;
+          })()}
         </section>
       )}
 
@@ -1051,6 +1135,22 @@ export default function Home() {
             )}
           </p>
           <SefazGrid data={sefaz} error={sefazError} />
+        </section>
+      )}
+
+      {tab === "tecno" && (
+        <section className="card">
+          <div className="card-head">
+            <h2>Status TecnoSpeed (NFe / CTe / NFCe)</h2>
+            <button onClick={loadTecno}>↻ Atualizar</button>
+          </div>
+          <p className="muted" style={{ fontSize: "0.8rem", marginBottom: 14 }}>
+            Status por UF do dashboard público{" "}
+            <em>monitor.tecnospeed.com.br</em>. 🟢 Normal (≤2s) · 🟡 Lento /
+            Muito lento · ⚪ Timeout · 🔴 Erro — atualiza sozinho a cada 10s
+            (cache 60s no servidor)
+          </p>
+          <StatusGrid data={tecno} error={tecnoError} idPrefix="tecno" />
         </section>
       )}
 

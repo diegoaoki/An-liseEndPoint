@@ -5,8 +5,11 @@
   vem embutida no JS público da própria página — uso read-only, igual
   ao que o navegador faz ao abrir statusqr.linx.com.br.
 - SEFAZ NF-e: scrape da página pública de disponibilidade (HTML).
+- TecnoSpeed: JSON público consumido pelo dashboard
+  monitor.tecnospeed.com.br (NFe, CTe, NFCe por UF).
 """
 
+import asyncio
 import re
 import time
 import xml.etree.ElementTree as ET
@@ -28,6 +31,20 @@ _cache: dict = {"at": 0.0, "data": None}
 _linx_cache: dict = {"at": 0.0, "data": None}
 _invoicy_cache: dict = {"at": 0.0, "data": None}
 _sefaz_cache: dict = {"at": 0.0, "data": None}
+_tecno_cache: dict = {"at": 0.0, "data": None}
+
+# TecnoSpeed: dashboard público com status NFe/CTe/NFCe por UF.
+TECNO_URL = "https://monitor.tecnospeed.com.br/monitores"
+TECNO_DOCS = ["nfe", "cte", "nfce"]
+# Mapeamento de status do worker -> texto. Casa com as classes CSS do
+# próprio painel (1=green, 2=yellow, 3=orange, 4=grey, 5=red).
+TECNO_STATUS = {
+    1: "Normal",
+    2: "Lento",
+    3: "Muito lento",
+    4: "Timeout",
+    5: "Erro",
+}
 
 # SEFAZ NF-e: scrape da página pública (ASP.NET WebForms).
 SEFAZ_URL = (
@@ -269,4 +286,67 @@ async def fetch_sefaz_status() -> dict:
     data = {"source": SEFAZ_URL, "checked_at": checked_at, "items": items}
     _sefaz_cache["at"] = now
     _sefaz_cache["data"] = data
+    return data
+
+
+async def fetch_tecnospeed_status() -> dict:
+    """Consome o endpoint público do dashboard TecnoSpeed.
+
+    Faz 1 GET por tipo de documento (nfe/cte/nfce) em paralelo. Cada
+    resposta é uma lista de workers; do id_worker (`sefaz_{doc}_envio_{uf}`)
+    extraímos a UF e mapeamos o código numérico para um texto.
+    """
+    now = time.time()
+    if (
+        _tecno_cache["data"] is not None
+        and (now - _tecno_cache["at"]) < CACHE_TTL
+    ):
+        return _tecno_cache["data"]
+
+    async with httpx.AsyncClient() as client:
+
+        async def fetch_doc(doc: str) -> tuple[str, list[dict]]:
+            resp = await client.get(
+                TECNO_URL,
+                params={
+                    "stateStatus": "true",
+                    "doc": doc,
+                    "worker_id": f"sefaz_{doc}_envio_pr",
+                },
+                timeout=20.0,
+            )
+            resp.raise_for_status()
+            return doc, resp.json()
+
+        results = await asyncio.gather(*(fetch_doc(d) for d in TECNO_DOCS))
+
+    doc_label = {"nfe": "NFe", "cte": "CTe", "nfce": "NFCe"}
+    items: list[dict] = []
+    for doc, rows in results:
+        for row in rows:
+            wid = row.get("id_worker") or ""
+            uf = (wid.rsplit("_", 1)[-1] if wid else "").upper()
+            if not uf:
+                continue
+            try:
+                code = int(float(row.get("status") or 0))
+            except (TypeError, ValueError):
+                code = 0
+            items.append(
+                {
+                    "component": f"{doc_label[doc]} · {uf}",
+                    "uf": uf,
+                    "system": doc_label[doc],
+                    "status": TECNO_STATUS.get(code, "Sem dados"),
+                    "updated_at": "",
+                }
+            )
+
+    # ordena por doc (NFe, CTe, NFCe) e depois UF, pra render previsível
+    order = {"NFe": 0, "CTe": 1, "NFCe": 2}
+    items.sort(key=lambda i: (order.get(i["system"], 99), i["uf"]))
+
+    data = {"source": "https://monitor.tecnospeed.com.br/", "items": items}
+    _tecno_cache["at"] = now
+    _tecno_cache["data"] = data
     return data
