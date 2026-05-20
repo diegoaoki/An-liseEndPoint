@@ -634,7 +634,9 @@ const PDV_STAGES = [
     subtitle: "",
     icon: "💰",
     color: "teal",
-    endpointName: null,
+    // Deriva do status publico da QrLinx (aba Status Linx).
+    // Pior estado entre os PSPs listados vira a cor do farol.
+    linxComponents: ["Pagar.me", "Santander"],
   },
   {
     key: "invoicy",
@@ -642,7 +644,8 @@ const PDV_STAGES = [
     subtitle: "NFC-e",
     icon: "🧾",
     color: "green",
-    endpointName: null,
+    // Deriva do status publico da Invoicy (todos os componentes).
+    invoicyComponents: null,
   },
   {
     key: "finalizacao",
@@ -654,7 +657,72 @@ const PDV_STAGES = [
   },
 ];
 
-function PdvFlow({ endpoints, onNavigate }) {
+// Pior cor entre uma lista (red > yellow > blue > gray > green).
+const COLOR_PRIORITY = { red: 4, yellow: 3, blue: 2, gray: 1, green: 0 };
+
+// Deriva o farol de uma lista de items externos (Linx/Invoicy/etc.).
+// filter=null -> usa todos; filter=[...] -> usa so os componentes da lista.
+function deriveFromExternalSource(items, filter, navTab) {
+  const filtered = filter
+    ? items.filter((i) => filter.includes(i.component))
+    : items;
+  if (filtered.length === 0) return { configured: false };
+  let worst = filtered[0];
+  for (const it of filtered) {
+    if (
+      (COLOR_PRIORITY[statusColor(it.status)] ?? 0) >
+      (COLOR_PRIORITY[statusColor(worst.status)] ?? 0)
+    ) {
+      worst = it;
+    }
+  }
+  const problems = filtered.filter(
+    (i) => statusColor(i.status) !== "green"
+  );
+  const texto =
+    problems.length === 0
+      ? `Todos operacionais (${filtered.length})`
+      : problems.map((i) => `${i.component}: ${i.status}`).join(" · ");
+  return {
+    configured: true,
+    color: statusColor(worst.status),
+    texto,
+    latencyMs: null,
+    onClick: (nav) => nav(null, navTab),
+  };
+}
+
+function resolveStage(stage, byName, linx, invoicy) {
+  if (stage.endpointName) {
+    const ep = byName.get(stage.endpointName);
+    if (!ep) return { configured: false };
+    const { color, texto } = farolStatus(ep);
+    return {
+      configured: true,
+      color,
+      texto: `${ep.name} · ${texto}`,
+      latencyMs: ep.last_result?.response_time_ms,
+      onClick: (nav) => nav(`api-card-${ep.id}`, "painel"),
+    };
+  }
+  if (stage.linxComponents !== undefined) {
+    return deriveFromExternalSource(
+      linx?.items || [],
+      stage.linxComponents,
+      "linx"
+    );
+  }
+  if (stage.invoicyComponents !== undefined) {
+    return deriveFromExternalSource(
+      invoicy?.items || [],
+      stage.invoicyComponents,
+      "invoicy"
+    );
+  }
+  return { configured: false };
+}
+
+function PdvFlow({ endpoints, linx, invoicy, onNavigate }) {
   const byName = useMemo(() => {
     const m = new Map();
     for (const ep of endpoints || []) m.set(ep.name, ep);
@@ -666,34 +734,30 @@ function PdvFlow({ endpoints, onNavigate }) {
       <h2 className="pdv-flow-heading">VAR 3.0</h2>
       <div className="pdv-flow">
         {PDV_STAGES.map((s, i) => {
-        const ep = s.endpointName ? byName.get(s.endpointName) : null;
-        const { color, texto } = ep
-          ? farolStatus(ep)
-          : { color: "gray", texto: "Sem endpoint vinculado" };
-        const tooltip = ep ? `${ep.name} · ${texto}` : texto;
-        const clickable = !!ep;
-        return (
-          <Fragment key={s.key}>
-            <div
-              className={`pdv-stage pdv-${s.color}${clickable ? " clickable" : ""}`}
-              title={tooltip}
-              onClick={
-                clickable ? () => onNavigate(`api-card-${ep.id}`, "painel") : undefined
-              }
-            >
-              <div className="pdv-icon">{s.icon}</div>
-              <div className="pdv-title">{s.title}</div>
-              {s.subtitle && <div className="pdv-subtitle">{s.subtitle}</div>}
-              {ep && <div className={`farol farol-${color}`} />}
-              {ep && (
-                <div className="pdv-latency">
-                  {fmtMs(ep.last_result?.response_time_ms)}
-                </div>
-              )}
-            </div>
-            {i < PDV_STAGES.length - 1 && <div className="pdv-arrow" />}
-          </Fragment>
-        );
+          const r = resolveStage(s, byName, linx, invoicy);
+          const clickable = r.configured && !!r.onClick;
+          return (
+            <Fragment key={s.key}>
+              <div
+                className={`pdv-stage pdv-${s.color}${clickable ? " clickable" : ""}`}
+                title={r.texto || "Sem endpoint vinculado"}
+                onClick={
+                  clickable ? () => r.onClick(onNavigate) : undefined
+                }
+              >
+                <div className="pdv-icon">{s.icon}</div>
+                <div className="pdv-title">{s.title}</div>
+                {s.subtitle && <div className="pdv-subtitle">{s.subtitle}</div>}
+                {r.configured && (
+                  <div className={`farol farol-${r.color}`} />
+                )}
+                {r.configured && r.latencyMs != null && (
+                  <div className="pdv-latency">{fmtMs(r.latencyMs)}</div>
+                )}
+              </div>
+              {i < PDV_STAGES.length - 1 && <div className="pdv-arrow" />}
+            </Fragment>
+          );
         })}
       </div>
     </div>
@@ -1040,7 +1104,12 @@ export default function Home() {
         tecno={tecno}
         onNavigate={goToCard}
       />
-      <PdvFlow endpoints={activeEndpoints} onNavigate={goToCard} />
+      <PdvFlow
+        endpoints={activeEndpoints}
+        linx={linx}
+        invoicy={invoicy}
+        onNavigate={goToCard}
+      />
       <hr className="section-divider" />
 
       <nav className="tabs">
