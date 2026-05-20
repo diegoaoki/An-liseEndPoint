@@ -4,8 +4,10 @@
 - Linx (QrLinx): API Azure APIM da página pública; a subscription key
   vem embutida no JS público da própria página — uso read-only, igual
   ao que o navegador faz ao abrir statusqr.linx.com.br.
+- SEFAZ NF-e: scrape da página pública de disponibilidade (HTML).
 """
 
+import re
 import time
 import xml.etree.ElementTree as ET
 
@@ -25,6 +27,33 @@ LINX_HEADERS = {
 _cache: dict = {"at": 0.0, "data": None}
 _linx_cache: dict = {"at": 0.0, "data": None}
 _invoicy_cache: dict = {"at": 0.0, "data": None}
+_sefaz_cache: dict = {"at": 0.0, "data": None}
+
+# SEFAZ NF-e: scrape da página pública (ASP.NET WebForms).
+SEFAZ_URL = (
+    "https://www.nfe.fazenda.gov.br/portal/disponibilidade.aspx"
+    "?AspxAutoDetectCookieSupport=1"
+)
+SEFAZ_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml",
+    "Accept-Language": "pt-BR,pt;q=0.9",
+}
+SEFAZ_SERVICES = [
+    "Autorização",
+    "Retorno Autorização",
+    "Inutilização",
+    "Consulta Protocolo",
+    "Status Serviço",
+    "Consulta Cadastro",
+    "Recepção Evento",
+]
+# Pior status entre serviços determina a cor do autorizador.
+_SEFAZ_PRIORITY = {"Indisponível": 3, "Alerta": 2, "Operacional": 1}
 
 # Invoicy também é StatusIQ; o RSS está desativado, então usamos o
 # mesmo endpoint público que o frontend Angular do StatusIQ consome.
@@ -158,4 +187,86 @@ async def fetch_invoicy_status() -> dict:
     data = {"source": "https://status.invoicy.com.br/", "items": items}
     _invoicy_cache["at"] = now
     _invoicy_cache["data"] = data
+    return data
+
+
+def _sefaz_ball_status(cell_html: str) -> str:
+    if "bola_verde" in cell_html:
+        return "Operacional"
+    if "bola_amarela" in cell_html:
+        return "Alerta"
+    if "bola_vermelha" in cell_html:
+        return "Indisponível"
+    return ""  # <span></span> = serviço não aplicável
+
+
+async def fetch_sefaz_status() -> dict:
+    """Faz scrape da tabela pública de disponibilidade da SEFAZ NF-e.
+
+    A página é ASP.NET WebForms; cada linha tem o UF e 8 células (7 serviços
+    + tempo médio). Status dos serviços é uma imagem (bola verde/amarela/
+    vermelha) e Tempo Médio é texto.
+    """
+    now = time.time()
+    if (
+        _sefaz_cache["data"] is not None
+        and (now - _sefaz_cache["at"]) < CACHE_TTL
+    ):
+        return _sefaz_cache["data"]
+
+    async with httpx.AsyncClient(
+        headers=SEFAZ_HEADERS, follow_redirects=True
+    ) as client:
+        resp = await client.get(SEFAZ_URL, timeout=20.0)
+        resp.raise_for_status()
+
+    html = resp.text
+    table_match = re.search(
+        r'id="ctl00_ContentPlaceHolder1_gdvDisponibilidade2"[^>]*>(.*?)</table>',
+        html,
+        re.DOTALL,
+    )
+    if not table_match:
+        raise RuntimeError("Tabela de disponibilidade não encontrada")
+    table = table_match.group(1)
+
+    cap = re.search(r"Última Verificação:\s*([^<]+)", html)
+    checked_at = cap.group(1).strip() if cap else ""
+
+    items: list[dict] = []
+    for row in re.finditer(r"<tr[^>]*>(.*?)</tr>", table, re.DOTALL):
+        cells = re.findall(r"<td[^>]*>(.*?)</td>", row.group(1), re.DOTALL)
+        if len(cells) < 9:
+            continue  # header (<th>) ou linha incompleta
+        uf = re.sub(r"<[^>]+>", "", cells[0]).strip()
+        if not uf:
+            continue
+        # 5 serviços, tempo médio (texto), 2 serviços
+        svc_cells = cells[1:6] + cells[7:9]
+        statuses = [_sefaz_ball_status(c) for c in svc_cells]
+        services = [
+            {"name": name, "status": st or "N/A"}
+            for name, st in zip(SEFAZ_SERVICES, statuses)
+        ]
+        valid = [s for s in statuses if s]
+        worst = (
+            max(valid, key=lambda s: _SEFAZ_PRIORITY.get(s, 0))
+            if valid
+            else "Sem dados"
+        )
+        tempo = re.sub(r"<[^>]+>", "", cells[6]).strip() or "-"
+        items.append(
+            {
+                "component": uf,
+                "status": worst,
+                "system": "",
+                "updated_at": checked_at,
+                "tempo_medio": tempo,
+                "services": services,
+            }
+        )
+
+    data = {"source": SEFAZ_URL, "checked_at": checked_at, "items": items}
+    _sefaz_cache["at"] = now
+    _sefaz_cache["data"] = data
     return data

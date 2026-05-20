@@ -46,6 +46,7 @@ export const api = {
   rpeStatus: () => request(`/external/rpe-status`),
   linxStatus: () => request(`/external/linx-status`),
   invoicyStatus: () => request(`/external/invoicy-status`),
+  sefazStatus: () => request(`/external/sefaz-status`),
   logs: (limit = 100, onlyFailures = false) =>
     request(
       `/results?limit=${limit}${onlyFailures ? "&only_failures=true" : ""}`

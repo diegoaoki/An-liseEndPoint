@@ -410,3 +410,26 @@ th {
   border-color: #7f1d1d;
   color: #fecaca;
 }
+
+/* Breakdown compacto dos serviços dentro de um card SEFAZ. */
+.sefaz-services {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 6px;
+}
+
+.sefaz-svc {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  color: #cbd5e1;
+}
+
+.sefaz-svc .farol {
+  width: 9px;
+  height: 9px;
+  margin-top: 0;
+  box-shadow: none;
+}

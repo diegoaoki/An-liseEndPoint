@@ -389,11 +389,12 @@ function StatusChip({
   );
 }
 
-function GlobalBanner({ endpoints, rpe, linx, invoicy, onNavigate }) {
+function GlobalBanner({ endpoints, rpe, linx, invoicy, sefaz, onNavigate }) {
   const a = collectEndpoints(endpoints);
   const l = collectItems(linx?.items);
   const r = collectItems(rpe?.items);
   const i = collectItems(invoicy?.items);
+  const s = collectItems(sefaz?.items);
   return (
     <div className="status-row">
       <StatusChip
@@ -428,20 +429,76 @@ function GlobalBanner({ endpoints, rpe, linx, invoicy, onNavigate }) {
         targetTab="invoicy"
         onNavigate={onNavigate}
       />
+      <StatusChip
+        label="SEFAZ"
+        problems={s.p}
+        warnings={s.w}
+        targetId={firstAffectedItems(sefaz?.items || [], "sefaz")}
+        targetTab="sefaz"
+        onNavigate={onNavigate}
+      />
     </div>
   );
 }
 
-// Mapeia o texto de status (RPE/Linx) numa cor de farol.
+// Mapeia o texto de status (RPE/Linx/SEFAZ) numa cor de farol.
 function statusColor(status) {
   const s = (status || "").toLowerCase();
   if (s.includes("operacional")) return "green";
-  if (s.includes("inativo")) return "gray";
+  if (s.includes("inativo") || s.includes("sem dados")) return "gray";
   if (s.includes("manuten") || s.includes("informativo")) return "blue";
   if (s.includes("alerta") || s.includes("degrad") || s.includes("parcial"))
     return "yellow";
   if (!s) return "gray";
   return "red";
+}
+
+function SefazGrid({ data, error }) {
+  if (error) return <div className="error-msg">⚠ {error}</div>;
+  if (!data) return <p className="muted">Carregando…</p>;
+  if (!data.items?.length)
+    return <p className="muted">Nenhum autorizador retornado.</p>;
+  return (
+    <div className="dash-grid">
+      {data.items.map((it, i) => {
+        const color = statusColor(it.status);
+        const down = color === "red";
+        return (
+          <div
+            key={`${it.component}-${i}`}
+            id={`sefaz-card-${i}`}
+            className={down ? "dash-card dash-card-down" : "dash-card"}
+          >
+            {down && <div className="down-banner">⚠ {it.status}</div>}
+            <div className="dash-head">
+              <span className={`farol farol-${color}`} title={it.status} />
+              <div>
+                <strong>{it.component}</strong>
+                <div className="muted" style={{ fontSize: "0.74rem" }}>
+                  {it.status} · Tempo médio: {it.tempo_medio || "—"}
+                </div>
+              </div>
+            </div>
+            <div className="sefaz-services">
+              {(it.services || []).map((svc) => {
+                const c = statusColor(svc.status);
+                return (
+                  <span
+                    key={svc.name}
+                    className="sefaz-svc"
+                    title={`${svc.name}: ${svc.status}`}
+                  >
+                    <span className={`farol farol-${c}`} />
+                    {svc.name}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function StatusGrid({ data, error, idPrefix }) {
@@ -512,6 +569,8 @@ export default function Home() {
   const [linxError, setLinxError] = useState(null);
   const [invoicy, setInvoicy] = useState(null);
   const [invoicyError, setInvoicyError] = useState(null);
+  const [sefaz, setSefaz] = useState(null);
+  const [sefazError, setSefazError] = useState(null);
   const [logs, setLogs] = useState([]);
   const [logsOnlyFailures, setLogsOnlyFailures] = useState(false);
 
@@ -566,6 +625,16 @@ export default function Home() {
     }
   }, []);
 
+  const loadSefaz = useCallback(async () => {
+    try {
+      const d = await api.sefazStatus();
+      setSefaz(d);
+      setSefazError(null);
+    } catch (e) {
+      setSefazError(e.message);
+    }
+  }, []);
+
   const loadLogs = useCallback(async () => {
     try {
       const d = await api.logs(150, logsOnlyFailures);
@@ -581,6 +650,7 @@ export default function Home() {
     loadRpe();
     loadLinx();
     loadInvoicy();
+    loadSefaz();
     loadLogs();
     // Tela principal se atualiza sozinha a cada 10s.
     const t = setInterval(() => {
@@ -588,10 +658,19 @@ export default function Home() {
       loadRpe();
       loadLinx();
       loadInvoicy();
+      loadSefaz();
       loadLogs();
     }, 10000);
     return () => clearInterval(t);
-  }, [load, loadSettings, loadRpe, loadLinx, loadInvoicy, loadLogs]);
+  }, [
+    load,
+    loadSettings,
+    loadRpe,
+    loadLinx,
+    loadInvoicy,
+    loadSefaz,
+    loadLogs,
+  ]);
 
   function goToCard(id, targetTab = "painel") {
     setTab(targetTab);
@@ -780,6 +859,7 @@ export default function Home() {
         rpe={rpe}
         linx={linx}
         invoicy={invoicy}
+        sefaz={sefaz}
         onNavigate={goToCard}
       />
       <h1>Endpoint Monitor</h1>
@@ -811,6 +891,12 @@ export default function Home() {
           onClick={() => setTab("invoicy")}
         >
           Status Invoicy
+        </button>
+        <button
+          className={tab === "sefaz" ? "tab active" : "tab"}
+          onClick={() => setTab("sefaz")}
+        >
+          Status SEFAZ
         </button>
         <button
           className={tab === "log" ? "tab active" : "tab"}
@@ -907,6 +993,29 @@ export default function Home() {
             (cache 60s no servidor)
           </p>
           <StatusGrid data={invoicy} error={invoicyError} idPrefix="invoicy" />
+        </section>
+      )}
+
+      {tab === "sefaz" && (
+        <section className="card">
+          <div className="card-head">
+            <h2>Status SEFAZ NF-e</h2>
+            <button onClick={loadSefaz}>↻ Atualizar</button>
+          </div>
+          <p className="muted" style={{ fontSize: "0.8rem", marginBottom: 14 }}>
+            Disponibilidade dos autorizadores SEFAZ (
+            <em>nfe.fazenda.gov.br/portal/disponibilidade.aspx</em>). Cada card
+            mostra o pior estado entre os 7 serviços. 🟢 operacional · 🟡
+            alerta · 🔴 indisponível · ⚪ N/A — atualiza sozinho a cada 10s
+            (cache 60s no servidor)
+            {sefaz?.checked_at && (
+              <>
+                {" "}
+                · última verificação SEFAZ: <strong>{sefaz.checked_at}</strong>
+              </>
+            )}
+          </p>
+          <SefazGrid data={sefaz} error={sefazError} />
         </section>
       )}
 

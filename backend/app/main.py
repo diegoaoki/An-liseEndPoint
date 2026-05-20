@@ -13,6 +13,7 @@ from .external import (
     fetch_invoicy_status,
     fetch_linx_status,
     fetch_rpe_status,
+    fetch_sefaz_status,
 )
 from .monitor import (
     check_single,
@@ -182,6 +183,18 @@ async def invoicy_status():
         raise HTTPException(
             status_code=502,
             detail=f"Falha ao ler status.invoicy.com.br: {exc}",
+        )
+
+
+@app.get("/external/sefaz-status")
+async def sefaz_status():
+    """Disponibilidade dos autorizadores SEFAZ NF-e (scrape da página pública)."""
+    try:
+        return await fetch_sefaz_status()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502,
+            detail=f"Falha ao ler nfe.fazenda.gov.br: {exc}",
         )
 
 
