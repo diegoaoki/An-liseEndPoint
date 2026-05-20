@@ -770,10 +770,13 @@ export default function Home() {
     if (!history[id]) await loadHistory(id);
   }
 
+  // Painel e banner ignoram pausados (so na Administracao aparecem todos).
+  const activeEndpoints = endpoints.filter((e) => e.is_active);
+
   return (
     <main className="container">
       <GlobalBanner
-        endpoints={endpoints}
+        endpoints={activeEndpoints}
         rpe={rpe}
         linx={linx}
         invoicy={invoicy}
@@ -837,7 +840,7 @@ export default function Home() {
             🟢 até +20% da média · 🟡 +20% a +50% · 🔴 acima de +50% (ou falha)
             · 🔵 sem base ainda · ⚪ sem dados — atualiza sozinho a cada 10s
           </p>
-          <Dashboard endpoints={endpoints} loading={loading} />
+          <Dashboard endpoints={activeEndpoints} loading={loading} />
 
           <h2 style={{ marginTop: 28, marginBottom: 12 }}>Board RPE</h2>
           <p className="muted" style={{ fontSize: "0.78rem", marginBottom: 12 }}>
