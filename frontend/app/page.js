@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
 
-const METHODS = ["GET", "POST", "HEAD", "PUT", "DELETE"];
+const METHODS = ["GET", "POST", "HEAD", "PUT", "DELETE", "TCP"];
 
 function fmtTime(iso) {
   if (!iso) return "—";
@@ -30,7 +30,11 @@ function fmtNext(iso, isActive) {
 function ResultBadge({ result }) {
   if (!result) return <span className="badge idle">sem dados</span>;
   if (result.success) {
-    return <span className="badge ok">{result.status_code} OK</span>;
+    return (
+      <span className="badge ok">
+        {result.status_code ? `${result.status_code} OK` : "OK"}
+      </span>
+    );
   }
   return (
     <span className="badge fail">
@@ -624,7 +628,7 @@ const PDV_STAGES = [
     subtitle: "STLB01",
     icon: "🔌",
     color: "purple",
-    endpointName: null,
+    endpointName: "Linx STLB01",
   },
   {
     key: "linx2",

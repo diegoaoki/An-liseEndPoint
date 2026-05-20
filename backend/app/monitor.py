@@ -2,11 +2,50 @@
 
 import asyncio
 import time
+from urllib.parse import urlparse
 
 import httpx
 
 from . import models
 from .database import SessionLocal
+
+
+def _parse_host_port(url: str) -> tuple[str, int]:
+    """Extrai host e porta de URL/host:porta para o check TCP."""
+    parsed = urlparse(url if "://" in url else f"tcp://{url}")
+    host = parsed.hostname
+    if not host:
+        raise ValueError(f"URL sem host: {url!r}")
+    port = parsed.port
+    if port is None:
+        if parsed.scheme == "https":
+            port = 443
+        elif parsed.scheme == "http":
+            port = 80
+    if port is None:
+        raise ValueError(f"URL sem porta: {url!r}")
+    return host, port
+
+
+async def _tcp_check(endpoint: models.Endpoint) -> tuple[bool, float, str | None]:
+    """Tenta abrir socket TCP. Devolve (sucesso, ms, erro)."""
+    start = time.perf_counter()
+    try:
+        host, port = _parse_host_port(endpoint.url)
+        _, writer = await asyncio.wait_for(
+            asyncio.open_connection(host, port),
+            timeout=REQUEST_TIMEOUT,
+        )
+        elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except Exception:  # noqa: BLE001
+            pass
+        return True, elapsed_ms, None
+    except Exception as exc:  # noqa: BLE001
+        elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
+        return False, elapsed_ms, f"{type(exc).__name__}: {exc}"[:500]
 
 REQUEST_TIMEOUT = 30.0
 TOKEN_TIMEOUT = 20.0
@@ -63,6 +102,16 @@ async def _fetch_token(endpoint: models.Endpoint) -> str:
 
 async def check_endpoint(endpoint: models.Endpoint) -> models.CheckResult:
     """Faz um request no endpoint e devolve o resultado (sem persistir)."""
+    if (endpoint.method or "").upper() == "TCP":
+        success, elapsed_ms, error = await _tcp_check(endpoint)
+        return models.CheckResult(
+            endpoint_id=endpoint.id,
+            status_code=None,
+            response_time_ms=elapsed_ms,
+            success=success,
+            error=error,
+        )
+
     verify = endpoint.verify_ssl if endpoint.verify_ssl is not None else True
 
     start = time.perf_counter()
@@ -144,6 +193,18 @@ async def preview_endpoint(endpoint_id: int) -> dict | None:
         verify = ep.verify_ssl if ep.verify_ssl is not None else True
     finally:
         db.close()
+
+    if (ep.method or "").upper() == "TCP":
+        success, elapsed_ms, error = await _tcp_check(ep)
+        return {
+            "status_code": None,
+            "response_time_ms": elapsed_ms,
+            "content_type": "tcp/check",
+            "body": "(TCP connect OK)" if success else None,
+            "truncated": False,
+            "success": success,
+            "error": error,
+        }
 
     start = time.perf_counter()
     try:
