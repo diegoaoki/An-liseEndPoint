@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
 
 const METHODS = ["GET", "POST", "HEAD", "PUT", "DELETE"];
@@ -583,6 +583,113 @@ function StatusGrid({ data, error, idPrefix }) {
   );
 }
 
+// Fluxo de venda PDV: cada etapa pega o status de um endpoint
+// (por nome exato em `endpointName`). null = sem vinculo ainda (cinza).
+const PDV_STAGES = [
+  {
+    key: "identificacao",
+    title: "Identificação",
+    subtitle: "do Cliente",
+    icon: "👤",
+    color: "blue",
+    endpointName: null,
+  },
+  {
+    key: "tudoav",
+    title: "Tudo AV",
+    subtitle: "",
+    icon: "📋",
+    color: "blue",
+    endpointName: null,
+  },
+  {
+    key: "bipagem",
+    title: "Bipagem",
+    subtitle: "",
+    icon: "🛒",
+    color: "teal",
+    endpointName: null,
+  },
+  {
+    key: "vale",
+    title: "Vale",
+    subtitle: "",
+    icon: "🎟️",
+    color: "green",
+    endpointName: null,
+  },
+  {
+    key: "linx1",
+    title: "Linx",
+    subtitle: "STLB01",
+    icon: "🔌",
+    color: "purple",
+    endpointName: null,
+  },
+  {
+    key: "linx2",
+    title: "Linx",
+    subtitle: "STLB02",
+    icon: "🔌",
+    color: "purple",
+    endpointName: null,
+  },
+  {
+    key: "pagamento",
+    title: "Pagamento",
+    subtitle: "Horizon",
+    icon: "💳",
+    color: "coral",
+    endpointName: null,
+  },
+  {
+    key: "finalizacao",
+    title: "Finalização",
+    subtitle: "",
+    icon: "✅",
+    color: "amber",
+    endpointName: null,
+  },
+];
+
+function PdvFlow({ endpoints, onNavigate }) {
+  const byName = useMemo(() => {
+    const m = new Map();
+    for (const ep of endpoints || []) m.set(ep.name, ep);
+    return m;
+  }, [endpoints]);
+
+  return (
+    <div className="pdv-flow">
+      {PDV_STAGES.map((s, i) => {
+        const ep = s.endpointName ? byName.get(s.endpointName) : null;
+        const { color, texto } = ep
+          ? farolStatus(ep)
+          : { color: "gray", texto: "Sem endpoint vinculado" };
+        const tooltip = ep ? `${ep.name} · ${texto}` : texto;
+        const clickable = !!ep;
+        return (
+          <Fragment key={s.key}>
+            <div
+              className={`pdv-stage pdv-${s.color}${clickable ? " clickable" : ""}`}
+              title={tooltip}
+              onClick={
+                clickable ? () => onNavigate(`api-card-${ep.id}`, "painel") : undefined
+              }
+            >
+              <div className="pdv-icon">{s.icon}</div>
+              <div className="pdv-title">{s.title}</div>
+              {s.subtitle && <div className="pdv-subtitle">{s.subtitle}</div>}
+              <div className={`farol farol-${color}`} />
+            </div>
+            {i < PDV_STAGES.length - 1 && <div className="pdv-arrow" />}
+          </Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Home() {
   const [tab, setTab] = useState("painel");
   const [endpoints, setEndpoints] = useState([]);
@@ -923,6 +1030,7 @@ export default function Home() {
         tecno={tecno}
         onNavigate={goToCard}
       />
+      <PdvFlow endpoints={activeEndpoints} onNavigate={goToCard} />
       <h1>Endpoint Monitor</h1>
       <p className="subtitle">
         Cadastre endpoints; o backend mede o tempo de resposta automaticamente.

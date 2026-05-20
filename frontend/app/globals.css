@@ -411,6 +411,117 @@ th {
   color: #fecaca;
 }
 
+/* ---- Fluxo de venda PDV (cabeçalho centralizado) ---- */
+.pdv-flow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 18px 12px;
+  margin-bottom: 22px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+}
+
+.pdv-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 68px;
+  text-align: center;
+}
+
+.pdv-stage.clickable {
+  cursor: pointer;
+}
+
+.pdv-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  background: #0f172a;
+  border: 3px solid;
+  transition: transform 0.15s ease;
+}
+
+.pdv-stage.clickable:hover .pdv-icon {
+  transform: scale(1.08);
+}
+
+.pdv-blue .pdv-icon {
+  border-color: #3b82f6;
+}
+.pdv-teal .pdv-icon {
+  border-color: #14b8a6;
+}
+.pdv-green .pdv-icon {
+  border-color: #10b981;
+}
+.pdv-purple .pdv-icon {
+  border-color: #a855f7;
+}
+.pdv-coral .pdv-icon {
+  border-color: #f97316;
+}
+.pdv-amber .pdv-icon {
+  border-color: #f59e0b;
+}
+
+.pdv-title {
+  font-weight: 600;
+  font-size: 12px;
+  color: #e2e8f0;
+  max-width: 84px;
+  line-height: 1.2;
+}
+
+.pdv-subtitle {
+  font-size: 10px;
+  color: #94a3b8;
+  max-width: 84px;
+}
+
+.pdv-stage .farol {
+  margin-top: 4px;
+}
+
+.pdv-arrow {
+  flex: 1;
+  min-width: 16px;
+  height: 2px;
+  background: #334155;
+  margin-top: 28px;
+  position: relative;
+}
+
+.pdv-arrow::after {
+  content: "";
+  position: absolute;
+  right: -1px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-left: 6px solid #334155;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+}
+
+@media (max-width: 900px) {
+  .pdv-flow {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px;
+  }
+  .pdv-arrow {
+    display: none;
+  }
+}
+
 /* Breakdown compacto dos serviços dentro de um card SEFAZ. */
 .sefaz-services {
   display: flex;
