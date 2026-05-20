@@ -45,6 +45,11 @@ class Endpoint(Base):
         String(64), nullable=True
     )
     token_field: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Body que vai no POST/PUT/PATCH (raw). Suporta JSON ou form-urlencoded.
+    request_body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    request_content_type: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow
@@ -63,6 +68,10 @@ class Endpoint(Base):
     @property
     def has_token(self) -> bool:
         return bool(self.token_url and self.token_payload)
+
+    @property
+    def has_request_body(self) -> bool:
+        return bool(self.request_body)
 
 
 class Setting(Base):

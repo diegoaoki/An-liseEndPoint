@@ -796,6 +796,8 @@ export default function Home() {
     token_payload: "",
     token_content_type: "application/x-www-form-urlencoded",
     token_field: "access_token",
+    request_body: "",
+    request_content_type: "application/x-www-form-urlencoded",
   });
   const [submitting, setSubmitting] = useState(false);
   const [expanded, setExpanded] = useState(null);
@@ -1000,6 +1002,11 @@ export default function Home() {
           "application/x-www-form-urlencoded";
         payload.token_field = form.token_field || "access_token";
       }
+      if (form.request_body.trim()) {
+        payload.request_body = form.request_body;
+        payload.request_content_type =
+          form.request_content_type || "application/json";
+      }
       await api.createEndpoint(payload);
       setForm({
         name: "",
@@ -1013,6 +1020,8 @@ export default function Home() {
         token_payload: "",
         token_content_type: "application/x-www-form-urlencoded",
         token_field: "access_token",
+        request_body: "",
+        request_content_type: "application/x-www-form-urlencoded",
       });
       await load();
     } catch (err) {
@@ -1617,6 +1626,67 @@ export default function Home() {
                   </div>
                 </div>
               </details>
+              <details
+                style={{ width: "100%", marginTop: 4 }}
+                open={!!form.request_body}
+              >
+                <summary
+                  className="muted"
+                  style={{ cursor: "pointer", fontSize: "0.85rem" }}
+                >
+                  Body da requisição (POST/PUT — opcional)
+                </summary>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 10,
+                    marginTop: 10,
+                    alignItems: "flex-end",
+                  }}
+                >
+                  <div className="field" style={{ flex: 3 }}>
+                    <label>Body</label>
+                    <textarea
+                      style={{
+                        width: "100%",
+                        minHeight: 70,
+                        background: "#0f172a",
+                        border: "1px solid #334155",
+                        color: "#e2e8f0",
+                        padding: "9px 11px",
+                        borderRadius: 8,
+                        fontFamily:
+                          "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                        fontSize: "0.82rem",
+                      }}
+                      value={form.request_body}
+                      placeholder='grant_type=password&username=...&password=...   OU   {"chave":"valor"}'
+                      onChange={(e) =>
+                        setForm({ ...form, request_body: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="field">
+                    <label>Content-Type</label>
+                    <select
+                      value={form.request_content_type}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          request_content_type: e.target.value,
+                        })
+                      }
+                    >
+                      <option value="application/x-www-form-urlencoded">
+                        form-urlencoded
+                      </option>
+                      <option value="application/json">json</option>
+                      <option value="text/plain">text/plain</option>
+                    </select>
+                  </div>
+                </div>
+              </details>
             </form>
             <p
               className="muted"
@@ -1716,6 +1786,14 @@ function FragmentRow({
               style={{ marginLeft: 6 }}
             >
               🔑
+            </span>
+          )}
+          {ep.has_request_body && (
+            <span
+              title={`Body custom (${ep.request_content_type || "?"})`}
+              style={{ marginLeft: 6 }}
+            >
+              📝
             </span>
           )}
           <br />
@@ -1844,6 +1922,9 @@ function EditRow({ ep, onSave, onCancel }) {
     token_content_type:
       ep.token_content_type || "application/x-www-form-urlencoded",
     token_field: ep.token_field || "access_token",
+    request_body: "",
+    request_content_type:
+      ep.request_content_type || "application/x-www-form-urlencoded",
   });
 
   function submit(e) {
@@ -1876,6 +1957,15 @@ function EditRow({ ep, onSave, onCancel }) {
       payload.token_payload = null;
       payload.token_content_type = null;
       payload.token_field = null;
+    }
+    // Body da requisição: preenchido = sobrescreve; vazio = mantem o atual.
+    // (Igual ao padrao de senha — pra nao perder o body cadastrado.)
+    if (f.request_body) {
+      payload.request_body = f.request_body;
+      payload.request_content_type =
+        f.request_content_type || "application/json";
+    } else if (ep.has_request_body && f.request_content_type !== ep.request_content_type) {
+      payload.request_content_type = f.request_content_type;
     }
     onSave(payload);
   }
@@ -2028,6 +2118,66 @@ function EditRow({ ep, onSave, onCancel }) {
               placeholder="access_token"
               onChange={(e) => setF({ ...f, token_field: e.target.value })}
             />
+          </div>
+        </div>
+      </details>
+      <details
+        style={{ width: "100%", marginTop: 4 }}
+        open={!!f.request_body || ep.has_request_body}
+      >
+        <summary
+          className="muted"
+          style={{ cursor: "pointer", fontSize: "0.85rem" }}
+        >
+          Body da requisição (POST/PUT — opcional)
+        </summary>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 10,
+            marginTop: 10,
+            alignItems: "flex-end",
+          }}
+        >
+          <div className="field" style={{ flex: 3 }}>
+            <label>Body</label>
+            <textarea
+              style={{
+                width: "100%",
+                minHeight: 70,
+                background: "#0f172a",
+                border: "1px solid #334155",
+                color: "#e2e8f0",
+                padding: "9px 11px",
+                borderRadius: 8,
+                fontFamily:
+                  "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                fontSize: "0.82rem",
+              }}
+              value={f.request_body}
+              placeholder={
+                ep.has_request_body
+                  ? "manter atual (em branco)"
+                  : 'grant_type=password&username=...&password=...   OU   {"chave":"valor"}'
+              }
+              onChange={(e) => setF({ ...f, request_body: e.target.value })}
+            />
+          </div>
+          <div className="field">
+            <label>Content-Type</label>
+            <select
+              value={f.request_content_type}
+              onChange={(e) =>
+                setF({ ...f, request_content_type: e.target.value })
+              }
+            >
+              <option value="application/x-www-form-urlencoded">
+                form-urlencoded
+              </option>
+              <option value="application/json">json</option>
+              <option value="text/plain">text/plain</option>
+            </select>
           </div>
         </div>
       </details>

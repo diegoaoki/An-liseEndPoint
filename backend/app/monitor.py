@@ -127,6 +127,12 @@ async def check_endpoint(endpoint: models.Endpoint) -> models.CheckResult:
                 endpoint.auth_password or "",
             )
 
+        body = endpoint.request_body or None
+        if body:
+            headers["Content-Type"] = (
+                endpoint.request_content_type or "application/json"
+            )
+
         async with httpx.AsyncClient(verify=verify) as client:
             resp = await client.request(
                 endpoint.method.upper(),
@@ -135,6 +141,7 @@ async def check_endpoint(endpoint: models.Endpoint) -> models.CheckResult:
                 follow_redirects=True,
                 auth=auth,
                 headers=headers or None,
+                content=body,
             )
         elapsed_ms = (time.perf_counter() - start) * 1000
         return models.CheckResult(
@@ -216,6 +223,12 @@ async def preview_endpoint(endpoint_id: int) -> dict | None:
         elif ep.auth_username or ep.auth_password:
             auth = (ep.auth_username or "", ep.auth_password or "")
 
+        body = ep.request_body or None
+        if body:
+            headers["Content-Type"] = (
+                ep.request_content_type or "application/json"
+            )
+
         async with httpx.AsyncClient(verify=verify) as client:
             resp = await client.request(
                 ep.method.upper(),
@@ -224,6 +237,7 @@ async def preview_endpoint(endpoint_id: int) -> dict | None:
                 follow_redirects=True,
                 auth=auth,
                 headers=headers or None,
+                content=body,
             )
         elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
         text = resp.text or ""

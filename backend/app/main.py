@@ -72,6 +72,8 @@ def run_migrations() -> None:
         "token_payload": "TEXT",
         "token_content_type": "VARCHAR(64)",
         "token_field": "VARCHAR(64)",
+        "request_body": "TEXT",
+        "request_content_type": "VARCHAR(64)",
     }
     with engine.begin() as conn:
         for col, col_type in new_columns.items():

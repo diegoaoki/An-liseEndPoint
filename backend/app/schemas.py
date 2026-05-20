@@ -16,6 +16,8 @@ class EndpointCreate(BaseModel):
     token_payload: str | None = None
     token_content_type: str | None = None
     token_field: str | None = None
+    request_body: str | None = None
+    request_content_type: str | None = None
 
 
 class EndpointUpdate(BaseModel):
@@ -31,6 +33,8 @@ class EndpointUpdate(BaseModel):
     token_payload: str | None = None
     token_content_type: str | None = None
     token_field: str | None = None
+    request_body: str | None = None
+    request_content_type: str | None = None
 
 
 class EndpointOut(BaseModel):
@@ -52,6 +56,9 @@ class EndpointOut(BaseModel):
     token_content_type: str | None = None
     token_field: str | None = None
     has_token: bool = False
+    # request_body nunca volta (pode conter senha); só flag + content-type.
+    request_content_type: str | None = None
+    has_request_body: bool = False
 
 
 class SettingsOut(BaseModel):
