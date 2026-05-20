@@ -301,6 +301,15 @@ function linxBoardItems(linx) {
   return [...inBoard, ...extras];
 }
 
+// SEFAZ no painel: so aparece autorizador amarelo ou vermelho.
+function sefazBoardItems(sefaz) {
+  const items = sefaz?.items || [];
+  return items.filter((i) => {
+    const c = statusColor(i.status);
+    return c === "yellow" || c === "red";
+  });
+}
+
 function levelFromLists(problems, warnings) {
   if (problems.length) return "red";
   if (warnings.length) return "yellow";
@@ -453,7 +462,7 @@ function statusColor(status) {
   return "red";
 }
 
-function SefazGrid({ data, error }) {
+function SefazGrid({ data, error, idPrefix = "sefaz" }) {
   if (error) return <div className="error-msg">⚠ {error}</div>;
   if (!data) return <p className="muted">Carregando…</p>;
   if (!data.items?.length)
@@ -466,7 +475,7 @@ function SefazGrid({ data, error }) {
         return (
           <div
             key={`${it.component}-${i}`}
-            id={`sefaz-card-${i}`}
+            id={`${idPrefix}-card-${i}`}
             className={down ? "dash-card dash-card-down" : "dash-card"}
           >
             {down && <div className="down-banner">⚠ {it.status}</div>}
@@ -947,6 +956,32 @@ export default function Home() {
             error={linxError}
             idPrefix="linx"
           />
+
+          {(() => {
+            const sefazAlerts = sefazBoardItems(sefaz);
+            if (sefazError || sefazAlerts.length > 0) {
+              return (
+                <>
+                  <h2 style={{ marginTop: 28, marginBottom: 12 }}>
+                    Board SEFAZ
+                  </h2>
+                  <p
+                    className="muted"
+                    style={{ fontSize: "0.78rem", marginBottom: 12 }}
+                  >
+                    Autorizadores NF-e em alerta ou indisponíveis (só aparece
+                    quando há problema).
+                  </p>
+                  <SefazGrid
+                    data={{ items: sefazAlerts }}
+                    error={sefazError}
+                    idPrefix="sefaz-board"
+                  />
+                </>
+              );
+            }
+            return null;
+          })()}
         </section>
       )}
 
