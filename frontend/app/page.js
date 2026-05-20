@@ -1188,10 +1188,6 @@ export default function Home() {
               {refreshing ? "Atualizando…" : "↻ Atualizar todos"}
             </button>
           </div>
-          <p className="muted" style={{ fontSize: "0.8rem", marginBottom: 14 }}>
-            🟢 até +20% da média · 🟡 lento (+20% ou mais) · 🔴 fora do ar ·
-            🔵 sem base ainda · ⚪ sem dados — atualiza sozinho a cada 10s
-          </p>
           <Dashboard endpoints={activeEndpoints} loading={loading} />
 
           {(() => {
@@ -1676,6 +1672,10 @@ export default function Home() {
           </section>
         </>
       )}
+      <footer className="page-legend">
+        🟢 até +20% da média · 🟡 lento (+20% ou mais) · 🔴 fora do ar ·
+        🔵 sem base ainda · ⚪ sem dados — atualiza sozinho a cada 10s
+      </footer>
     </main>
   );
 }
