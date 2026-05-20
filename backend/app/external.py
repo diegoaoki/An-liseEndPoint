@@ -47,18 +47,28 @@ TECNO_STATUS = {
 }
 
 # SEFAZ NF-e: scrape da página pública (ASP.NET WebForms).
-SEFAZ_URL = (
-    "https://www.nfe.fazenda.gov.br/portal/disponibilidade.aspx"
-    "?AspxAutoDetectCookieSupport=1"
-)
+# Sem query: o handshake AspxAutoDetectCookieSupport é cuidado pelo
+# proprio ASP.NET via Set-Cookie no primeiro redirect.
+SEFAZ_URL = "https://www.nfe.fazenda.gov.br/portal/disponibilidade.aspx"
 SEFAZ_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/120.0.0.0 Safari/537.36"
     ),
-    "Accept": "text/html,application/xhtml+xml",
-    "Accept-Language": "pt-BR,pt;q=0.9",
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+        "image/avif,image/webp,*/*;q=0.8"
+    ),
+    "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
 }
 SEFAZ_SERVICES = [
     "Autorização",
@@ -232,8 +242,15 @@ async def fetch_sefaz_status() -> dict:
         return _sefaz_cache["data"]
 
     async with httpx.AsyncClient(
-        headers=SEFAZ_HEADERS, follow_redirects=True
+        headers=SEFAZ_HEADERS,
+        follow_redirects=True,
+        max_redirects=30,
+        cookies=httpx.Cookies(),
+        http2=False,
     ) as client:
+        # 1a chamada: o ASP.NET responde com Set-Cookie e redirect.
+        # 2a chamada (com os cookies persistidos no jar) devolve o HTML.
+        await client.get(SEFAZ_URL, timeout=20.0)
         resp = await client.get(SEFAZ_URL, timeout=20.0)
         resp.raise_for_status()
 
