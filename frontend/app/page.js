@@ -608,7 +608,8 @@ const PDV_STAGES = [
     key: "linx1",
     title: "Linx",
     subtitle: "STLB01",
-    icon: "🔌",
+    iconImg:
+      "https://www.linxcommerce.com.br/wp-content/uploads/2025/09/linx-commerce-logo-2026-negativo.png",
     color: "purple",
     endpointName: "Linx STLB01",
   },
@@ -616,7 +617,8 @@ const PDV_STAGES = [
     key: "linx2",
     title: "Linx",
     subtitle: "STLB02",
-    icon: "🔌",
+    iconImg:
+      "https://www.linxcommerce.com.br/wp-content/uploads/2025/09/linx-commerce-logo-2026-negativo.png",
     color: "purple",
     endpointName: "Linx STLB02",
   },
@@ -745,7 +747,17 @@ function PdvFlow({ endpoints, linx, invoicy, onNavigate }) {
                   clickable ? () => r.onClick(onNavigate) : undefined
                 }
               >
-                <div className="pdv-icon">{s.icon}</div>
+                <div className="pdv-icon">
+                  {s.iconImg ? (
+                    <img
+                      src={s.iconImg}
+                      alt={s.title}
+                      className="pdv-icon-img"
+                    />
+                  ) : (
+                    s.icon
+                  )}
+                </div>
                 <div className="pdv-title">{s.title}</div>
                 {s.subtitle && <div className="pdv-subtitle">{s.subtitle}</div>}
                 {r.configured && (

@@ -483,6 +483,13 @@ th {
   background: #0f172a;
   border: 3px solid;
   transition: transform 0.15s ease;
+  overflow: hidden;
+}
+
+.pdv-icon-img {
+  width: 78%;
+  height: 78%;
+  object-fit: contain;
 }
 
 .pdv-stage.clickable:hover .pdv-icon {
