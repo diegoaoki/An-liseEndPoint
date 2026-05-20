@@ -276,43 +276,15 @@ function Dashboard({ endpoints, loading }) {
   );
 }
 
-// Componentes da RPE sempre exibidos no board da página inicial.
-const RPE_BOARD = [
-  "API Transacional (Acheron)",
-  "Embossing de cartões",
-  "Cartões",
-  "Motor de Crédito",
-  "Autorizador Private Label",
-  "Autenticação",
-  "Produtos",
-  "Seguros",
-  "Portadores",
-];
-
-// Itens do board: os fixos + qualquer outro componente RPE que não esteja verde.
+// Boards no painel: so mostram componentes que NAO estao verdes.
 function rpeBoardItems(rpe) {
   const items = rpe?.items || [];
-  const fixed = new Set(RPE_BOARD);
-  const inBoard = RPE_BOARD.map((n) =>
-    items.find((i) => i.component === n)
-  ).filter(Boolean);
-  const extras = items.filter(
-    (i) => !fixed.has(i.component) && statusColor(i.status) !== "green"
-  );
-  return [...inBoard, ...extras];
+  return items.filter((i) => statusColor(i.status) !== "green");
 }
-
-// PSPs da Linx sempre exibidos no board da página inicial.
-const LINX_BOARD = ["Santander", "Pagar.me"];
 
 function linxBoardItems(linx) {
   const items = linx?.items || [];
-  const fixed = new Set(LINX_BOARD);
-  const inBoard = items.filter((i) => fixed.has(i.component));
-  const extras = items.filter(
-    (i) => !fixed.has(i.component) && statusColor(i.status) !== "green"
-  );
-  return [...inBoard, ...extras];
+  return items.filter((i) => statusColor(i.status) !== "green");
 }
 
 // SEFAZ no painel: so aparece autorizador amarelo ou vermelho.
@@ -654,6 +626,22 @@ const PDV_STAGES = [
     subtitle: "Horizon",
     icon: "💳",
     color: "coral",
+    endpointName: null,
+  },
+  {
+    key: "pix",
+    title: "Pix",
+    subtitle: "",
+    icon: "💰",
+    color: "teal",
+    endpointName: null,
+  },
+  {
+    key: "invoicy",
+    title: "Invoicy",
+    subtitle: "NFC-e",
+    icon: "🧾",
+    color: "green",
     endpointName: null,
   },
   {
@@ -1122,25 +1110,57 @@ export default function Home() {
           </p>
           <Dashboard endpoints={activeEndpoints} loading={loading} />
 
-          <h2 style={{ marginTop: 28, marginBottom: 12 }}>Board RPE</h2>
-          <p className="muted" style={{ fontSize: "0.78rem", marginBottom: 12 }}>
-            Componentes-chave da RPE + qualquer outro que não esteja verde.
-          </p>
-          <StatusGrid
-            data={rpe ? { items: rpeBoardItems(rpe) } : null}
-            error={rpeError}
-            idPrefix="rpe"
-          />
+          {(() => {
+            const rpeAlerts = rpeBoardItems(rpe);
+            if (rpeError || rpeAlerts.length > 0) {
+              return (
+                <>
+                  <h2 style={{ marginTop: 28, marginBottom: 12 }}>
+                    Board RPE
+                  </h2>
+                  <p
+                    className="muted"
+                    style={{ fontSize: "0.78rem", marginBottom: 12 }}
+                  >
+                    Componentes da RPE em alerta ou indisponíveis (só
+                    aparece quando há problema).
+                  </p>
+                  <StatusGrid
+                    data={{ items: rpeAlerts }}
+                    error={rpeError}
+                    idPrefix="rpe"
+                  />
+                </>
+              );
+            }
+            return null;
+          })()}
 
-          <h2 style={{ marginTop: 28, marginBottom: 12 }}>Board Linx</h2>
-          <p className="muted" style={{ fontSize: "0.78rem", marginBottom: 12 }}>
-            PSPs-chave da QrLinx + qualquer outro que não esteja verde.
-          </p>
-          <StatusGrid
-            data={linx ? { items: linxBoardItems(linx) } : null}
-            error={linxError}
-            idPrefix="linx"
-          />
+          {(() => {
+            const linxAlerts = linxBoardItems(linx);
+            if (linxError || linxAlerts.length > 0) {
+              return (
+                <>
+                  <h2 style={{ marginTop: 28, marginBottom: 12 }}>
+                    Board Linx
+                  </h2>
+                  <p
+                    className="muted"
+                    style={{ fontSize: "0.78rem", marginBottom: 12 }}
+                  >
+                    PSPs da QrLinx em alerta ou indisponíveis (só aparece
+                    quando há problema).
+                  </p>
+                  <StatusGrid
+                    data={{ items: linxAlerts }}
+                    error={linxError}
+                    idPrefix="linx"
+                  />
+                </>
+              );
+            }
+            return null;
+          })()}
 
           {(() => {
             const sefazAlerts = sefazBoardItems(sefaz);
