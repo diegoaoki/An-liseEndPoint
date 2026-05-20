@@ -636,7 +636,7 @@ const PDV_STAGES = [
     subtitle: "STLB02",
     icon: "🔌",
     color: "purple",
-    endpointName: null,
+    endpointName: "Linx STLB02",
   },
   {
     key: "pagamento",
@@ -664,8 +664,10 @@ function PdvFlow({ endpoints, onNavigate }) {
   }, [endpoints]);
 
   return (
-    <div className="pdv-flow">
-      {PDV_STAGES.map((s, i) => {
+    <div className="pdv-flow-wrapper">
+      <h2 className="pdv-flow-heading">VAR 3.0</h2>
+      <div className="pdv-flow">
+        {PDV_STAGES.map((s, i) => {
         const ep = s.endpointName ? byName.get(s.endpointName) : null;
         const { color, texto } = ep
           ? farolStatus(ep)
@@ -689,7 +691,8 @@ function PdvFlow({ endpoints, onNavigate }) {
             {i < PDV_STAGES.length - 1 && <div className="pdv-arrow" />}
           </Fragment>
         );
-      })}
+        })}
+      </div>
     </div>
   );
 }

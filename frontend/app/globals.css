@@ -412,16 +412,29 @@ th {
 }
 
 /* ---- Fluxo de venda PDV (cabeçalho centralizado) ---- */
-.pdv-flow {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 4px;
-  padding: 18px 12px;
+.pdv-flow-wrapper {
   margin-bottom: 22px;
   background: #1e293b;
   border: 1px solid #334155;
   border-radius: 12px;
+  padding: 18px 12px;
+}
+
+.pdv-flow-heading {
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: #e2e8f0;
+  margin-bottom: 16px;
+  text-transform: uppercase;
+}
+
+.pdv-flow {
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 4px;
 }
 
 .pdv-stage {
@@ -431,6 +444,8 @@ th {
   gap: 6px;
   min-width: 68px;
   text-align: center;
+  /* altura fixa pra os farois alinharem no fim, mesmo com/sem subtitulo */
+  min-height: 134px;
 }
 
 .pdv-stage.clickable {
@@ -488,7 +503,7 @@ th {
 }
 
 .pdv-stage .farol {
-  margin-top: 4px;
+  margin-top: auto; /* empurra todos os farois pra mesma altura (base) */
 }
 
 .pdv-arrow {
