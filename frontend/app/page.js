@@ -749,10 +749,13 @@ function PdvFlow({ endpoints, linx, invoicy, onNavigate }) {
                 <div className="pdv-title">{s.title}</div>
                 {s.subtitle && <div className="pdv-subtitle">{s.subtitle}</div>}
                 {r.configured && (
-                  <div className={`farol farol-${r.color}`} />
-                )}
-                {r.configured && r.latencyMs != null && (
-                  <div className="pdv-latency">{fmtMs(r.latencyMs)}</div>
+                  <>
+                    <div className={`farol farol-${r.color}`} />
+                    {/* Mantem a linha mesmo sem latencia, pra alinhar os farois. */}
+                    <div className="pdv-latency">
+                      {r.latencyMs != null ? fmtMs(r.latencyMs) : " "}
+                    </div>
+                  </>
                 )}
               </div>
               {i < PDV_STAGES.length - 1 && <div className="pdv-arrow" />}
