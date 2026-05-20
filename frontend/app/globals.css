@@ -411,6 +411,25 @@ th {
   color: #fecaca;
 }
 
+/* Divisor visual entre o cabecalho (fluxo PDV) e o resto da pagina. */
+.section-divider {
+  border: 0;
+  border-top: 1px solid #334155;
+  margin: 12px 0 24px;
+}
+
+/* Mensagem de "tudo verde" no painel quando nenhum recurso esta com problema. */
+.all-stable {
+  background: #064e3b;
+  color: #6ee7b7;
+  padding: 18px 22px;
+  border-radius: 10px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border: 1px solid #065f46;
+}
+
 /* ---- Fluxo de venda PDV (cabeçalho centralizado) ---- */
 .pdv-flow-wrapper {
   margin-bottom: 22px;
@@ -504,6 +523,13 @@ th {
 
 .pdv-stage .farol {
   margin-top: auto; /* empurra todos os farois pra mesma altura (base) */
+}
+
+.pdv-latency {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
 }
 
 .pdv-arrow {

@@ -257,9 +257,19 @@ function Dashboard({ endpoints, loading }) {
   if (loading) return <p className="muted">Carregando…</p>;
   if (endpoints.length === 0)
     return <p className="muted">Nenhum endpoint cadastrado ainda.</p>;
+  // Painel mostra apenas o que NAO esta verde (alerta/erro/sem dados).
+  const visible = endpoints.filter(
+    (ep) => farolStatus(ep).color !== "green"
+  );
+  if (visible.length === 0)
+    return (
+      <p className="all-stable">
+        ✅ Todos os recursos estão estáveis.
+      </p>
+    );
   return (
     <div className="dash-grid">
-      {endpoints.map((ep) => (
+      {visible.map((ep) => (
         <Farol key={ep.id} ep={ep} domId={`api-card-${ep.id}`} />
       ))}
     </div>
@@ -616,7 +626,7 @@ const PDV_STAGES = [
   },
   {
     key: "vale",
-    title: "Vale",
+    title: "Desconto",
     subtitle: "",
     icon: "🎟️",
     color: "green",
@@ -686,7 +696,12 @@ function PdvFlow({ endpoints, onNavigate }) {
               <div className="pdv-icon">{s.icon}</div>
               <div className="pdv-title">{s.title}</div>
               {s.subtitle && <div className="pdv-subtitle">{s.subtitle}</div>}
-              <div className={`farol farol-${color}`} />
+              {ep && <div className={`farol farol-${color}`} />}
+              {ep && (
+                <div className="pdv-latency">
+                  {fmtMs(ep.last_result?.response_time_ms)}
+                </div>
+              )}
             </div>
             {i < PDV_STAGES.length - 1 && <div className="pdv-arrow" />}
           </Fragment>
@@ -1038,10 +1053,7 @@ export default function Home() {
         onNavigate={goToCard}
       />
       <PdvFlow endpoints={activeEndpoints} onNavigate={goToCard} />
-      <h1>Endpoint Monitor</h1>
-      <p className="subtitle">
-        Cadastre endpoints; o backend mede o tempo de resposta automaticamente.
-      </p>
+      <hr className="section-divider" />
 
       <nav className="tabs">
         <button
