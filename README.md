@@ -2,10 +2,13 @@
 
 Monitor de tempo de resposta de endpoints.
 
-- **`backend/`** — FastAPI + APScheduler + PostgreSQL. A cada 5 min checa todos os
-  endpoints ativos e grava o tempo de resposta. Deploy no **Railway**.
+- **`backend/`** — FastAPI + APScheduler + SQLite. A cada 5 min checa todos os
+  endpoints ativos e grava o tempo de resposta.
 - **`frontend/`** — Next.js (App Router). Tela de admin para cadastrar endpoints
-  e ver o histórico. Deploy na **Vercel**.
+  e ver o histórico.
+
+Deploy via **Docker Compose** no servidor interno `172.16.10.100`
+(API em `:8001`, UI em `:8081`), com **autodeploy** a cada push na `main`.
 
 > Sem autenticação por enquanto (uso pessoal). Se a API ficar pública, adicione
 > uma API key antes — ver "Próximos passos".
@@ -56,27 +59,52 @@ App em `http://localhost:3000`.
 
 ---
 
-## Deploy
+## Deploy (servidor interno `172.16.10.100` via Docker)
 
-### Backend → Railway
+Backend e frontend rodam em containers (`docker-compose.yml` na raiz).
+O SQLite vive no volume `monitor-data` e sobrevive a rebuilds/deploys.
 
-1. Crie um projeto no Railway a partir deste repositório.
-2. Em **Settings → Root Directory**, defina `backend`.
-3. Adicione o plugin **PostgreSQL** (Railway injeta `DATABASE_URL`
-   automaticamente — o código já normaliza o prefixo `postgres://`).
-4. Variáveis recomendadas:
-   - `CHECK_INTERVAL_MINUTES=5`
-   - `CORS_ORIGINS=https://SEU-APP.vercel.app` (ou `*` enquanto testa)
-5. O start command já vem do `railway.json` / `Procfile`.
-6. Após o deploy, copie a URL pública (ex.: `https://xxx.up.railway.app`).
+| Serviço  | Porta host | URL                         |
+|----------|------------|-----------------------------|
+| API      | `8001`     | `http://172.16.10.100:8001` |
+| UI       | `8081`     | `http://172.16.10.100:8081` |
 
-### Frontend → Vercel
+### 1. Primeira subida
 
-1. Importe o repositório na Vercel.
-2. Em **Root Directory**, defina `frontend`.
-3. Variável de ambiente:
-   - `NEXT_PUBLIC_API_URL=https://xxx.up.railway.app` (URL do Railway, sem `/` no fim)
-4. Deploy. Atualize `CORS_ORIGINS` no Railway com a URL final da Vercel.
+```bash
+git clone <repo> monitor && cd monitor
+cp .env.example .env        # ajuste IP/portas se preciso
+docker compose up -d --build
+```
+
+### 2. Migrar os dados do Railway (one-off)
+
+Pegue a connection string do Postgres no painel do Railway e rode:
+
+```bash
+docker compose run --rm \
+  -e SOURCE_DATABASE_URL='postgresql://user:pass@host:5432/railway' \
+  backend python -m scripts.migrate_pg_to_sqlite
+```
+
+Copia endpoints + settings + histórico para `monitor.db` no volume.
+Para migrar só a config (sem histórico), passe `-e INCLUDE_HISTORY=false`.
+
+### 3. Autodeploy via GitHub (self-hosted runner)
+
+O servidor tem IP privado, então o deploy roda num **self-hosted runner**
+instalado nele. Configuração única:
+
+1. No GitHub: **Settings → Actions → Runners → New self-hosted runner**
+   (Linux). Siga os passos de download/config no servidor.
+2. Ao configurar, adicione o label **`monitor`** (o workflow usa
+   `runs-on: [self-hosted, monitor]`).
+3. Instale como serviço: `sudo ./svc.sh install && sudo ./svc.sh start`.
+4. Garanta que o usuário do runner está no grupo `docker`
+   (`sudo usermod -aG docker <user>`).
+
+A partir daí, todo push na `main` dispara `.github/workflows/deploy.yml`,
+que faz `docker compose up -d --build` no servidor.
 
 ---
 

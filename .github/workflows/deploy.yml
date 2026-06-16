@@ -1,0 +1,25 @@
+name: Deploy (servidor interno)
+
+# Roda num self-hosted runner instalado no próprio 172.16.10.100,
+# pois o servidor tem IP privado e runners da nuvem não o alcançam.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-monitor
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, monitor]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build e sobe os containers
+        run: docker compose up -d --build --remove-orphans
+
+      - name: Limpa imagens antigas
+        run: docker image prune -f

@@ -1,0 +1,43 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    image: monitor-backend
+    container_name: monitor-backend
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8001}:8001"
+    environment:
+      # SQLite num volume persistente (sobrevive a rebuilds/deploys).
+      DATABASE_URL: sqlite:////data/monitor.db
+      CHECK_INTERVAL_MINUTES: ${CHECK_INTERVAL_MINUTES:-5}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://172.16.10.100:8081}
+    volumes:
+      - monitor-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8001/health').status==200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # URL que o navegador do usuário usa p/ falar com a API (build-time).
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://172.16.10.100:8001}
+    image: monitor-frontend
+    container_name: monitor-frontend
+    restart: unless-stopped
+    ports:
+      - "${UI_PORT:-8081}:8081"
+    depends_on:
+      - backend
+
+volumes:
+  monitor-data:
